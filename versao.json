@@ -1,1 +1,1 @@
-{"build": 4, "versao": "0.6.1", "notas": "Ponte do celular, conexao em segundo plano", "arquivo": "drekz-tv.js", "tamanho": 778896}
+{"build": 5, "versao": "0.6.2", "notas": "Menos cortes de audio e imagem na Samsung; busca do Connect nao roda mais durante o video", "arquivo": "drekz-tv.js", "tamanho": 779026}
