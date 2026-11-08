@@ -779,7 +779,7 @@
   };
 
   // src/upd.js
-  var VER = "2.0.5";
+  var VER = "2.0.6";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1709,6 +1709,50 @@
   function recarregar() {
     for (const k in mem) delete mem[k];
   }
+  var PROV = [
+    { n: "Netflix", id: "8", c: "#e50914" },
+    { n: "Prime Video", id: "119|9", c: "#00a8e1" },
+    { n: "Disney+", id: "337", c: "#2b59ff" },
+    { n: "Max", id: "1899|384", c: "#8b5cf6" },
+    { n: "Paramount+", id: "531", c: "#1e7bff" },
+    { n: "Apple TV+", id: "350|2", c: "#9aa0a6" },
+    { n: "Globoplay", id: "307", c: "#ff5a1f" },
+    { n: "Crunchyroll", id: "283", c: "#f47521" }
+  ];
+  async function porTipo(chave, serie) {
+    const [ds, f] = await Promise.all([destaques(), fichas()]), by = new Map(f.map((x) => [x.id, x])), seen = /* @__PURE__ */ new Set(), out = [];
+    ds.filter((r) => norm(r.titulo).includes(chave)).forEach((r) => r.itens.forEach((it) => {
+      if (it.serie !== serie || seen.has(it.id)) return;
+      seen.add(it.id);
+      out.push(by.get(it.id) || it);
+    }));
+    f.forEach((x) => {
+      if (x.serie === serie && !seen.has(x.id) && x.genres.some((g) => norm(g).includes(chave))) {
+        seen.add(x.id);
+        out.push(x);
+      }
+    });
+    return out;
+  }
+  async function porProvedor(p, serie) {
+    const K2 = "prov_" + p.id + (serie ? "t" : "m"), c = cache.get(K2, null);
+    let ids;
+    if (c && Date.now() - c.t < 432e5) ids = c.ids;
+    else {
+      const ty = serie ? "tv" : "movie", get1 = async (pg) => {
+        try {
+          const j = await get("".concat(TMDB, "/discover/").concat(ty, "?api_key=").concat(KEY2, "&language=pt-BR&watch_region=BR&with_watch_providers=").concat(encodeURIComponent(p.id), "&with_watch_monetization_types=flatrate&sort_by=popularity.desc&page=").concat(pg), { text: false, timeout: 1e4 });
+          return (j.results || []).map((x) => x.id);
+        } catch (e) {
+          return [];
+        }
+      };
+      ids = (await Promise.all([1, 2, 3, 4, 5, 6].map(get1))).flat();
+      if (ids.length) cache.set(K2, { t: Date.now(), ids });
+    }
+    const pos = new Map(ids.map((id, i) => [id, i])), f = await fichas();
+    return f.filter((x) => x.serie === serie && x.tmdb && pos.has(x.tmdb)).sort((a, b) => pos.get(a.tmdb) - pos.get(b.tmdb));
+  }
 
   // src/search.js
   function score(q, qt, it) {
@@ -1990,32 +2034,56 @@
     m.innerHTML = "";
     m.append(h("h1", null, serie ? "S\xE9ries" : "Filmes"));
     if (!todos.length) return m.append(h("div", { class: "vazio" }, "Cat\xE1logo n\xE3o carregou. Confira a internet."));
-    const gn = arg && arg.gen || "Todos", lt = arg && arg.letra || "";
-    const gens = {};
-    todos.forEach((f) => f.genres.forEach((g) => gens[g] = (gens[g] || 0) + 1));
-    const topg = Object.keys(gens).sort((a, b) => gens[b] - gens[a]).slice(0, 14);
-    const re = (a) => go(serie ? "series" : "filmes", __spreadValues({ gen: gn, letra: lt }, a), { push: false });
-    m.append(
-      h("div", { class: "chips" }, ["Todos", ...topg].map((g) => h("div", { class: "chip f" + (g === gn ? " sel" : ""), onclick: () => re({ gen: g }) }, g))),
-      h("div", { class: "chips" }, ["", ..."#ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")].map((l2) => h("div", { class: "chip f" + (l2 === lt ? " sel" : ""), onclick: () => re({ letra: l2 }) }, l2 || "A\u2013Z")))
-    );
-    let l = todos;
-    if (gn !== "Todos") l = l.filter((f) => f.genres.includes(gn));
-    if (lt) l = l.filter((f) => f.letra === lt);
-    l = l.slice().sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
+    const cat = arg && arg.cat || "Tudo", gn = arg && arg.gen || "Todos", lt = arg && arg.letra || "";
+    const re = (a) => go(serie ? "series" : "filmes", __spreadValues({ cat, gen: gn, letra: lt }, a), { push: false });
+    const cats = [{ n: "Tudo" }, { n: "Animes", k: "anime", c: "#FFB454" }, { n: "Doramas", k: "dorama", c: "#FF7EB6" }, ...PROV];
+    m.append(h("div", { class: "chips" }, cats.map((c) => h(
+      "div",
+      { class: "chip f" + (c.n === cat ? " sel" : ""), style: c.n === cat && c.c ? "background:" + c.c + ";color:#0a0612" : "", onclick: () => c.n === cat ? null : re({ cat: c.n, gen: "Todos", letra: "" }) },
+      c.c && c.n !== cat ? h("span", { style: "display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:10px;background:" + c.c }) : null,
+      c.n
+    ))));
     const grid = h("div", { class: "grid" });
-    m.append(grid);
-    let n = 0;
+    let l = [], n = 0;
     const mais = () => {
       l.slice(n, n + CAP).forEach((it) => grid.append(card(it, () => abre(it))));
       n += CAP;
     };
-    mais();
-    if (!l.length) grid.append(h("div", { class: "vazio" }, "Nada nessa sele\xE7\xE3o."));
+    const mostra = () => {
+      n = 0;
+      grid.innerHTML = "";
+      mais();
+      if (!l.length) grid.append(h("div", { class: "vazio" }, "Nenhum t\xEDtulo encontrado nessa sele\xE7\xE3o."));
+    };
+    if (cat === "Tudo") {
+      const gens = {};
+      todos.forEach((f) => f.genres.forEach((g) => gens[g] = (gens[g] || 0) + 1));
+      const topg = Object.keys(gens).sort((a, b) => gens[b] - gens[a]).slice(0, 14);
+      m.append(
+        h("div", { class: "chips" }, ["Todos", ...topg].map((g) => h("div", { class: "chip f" + (g === gn ? " sel" : ""), onclick: () => re({ gen: g }) }, g))),
+        h("div", { class: "chips" }, ["", ..."#ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")].map((x) => h("div", { class: "chip f" + (x === lt ? " sel" : ""), onclick: () => re({ letra: x }) }, x || "A\u2013Z")))
+      );
+      l = todos;
+      if (gn !== "Todos") l = l.filter((f) => f.genres.includes(gn));
+      if (lt) l = l.filter((f) => f.letra === lt);
+      l = l.slice().sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
+      m.append(grid);
+      mostra();
+    } else {
+      const c = cats.find((x) => x.n === cat);
+      m.append(grid);
+      grid.append(h("div", { class: "vazio" }, "Buscando " + cat + "..."));
+      (c.k ? porTipo(c.k, serie) : porProvedor(c, serie)).then((r) => {
+        if (!grid.isConnected) return;
+        l = r;
+        mostra();
+      }).catch(() => {
+        grid.innerHTML = "";
+        grid.append(h("div", { class: "vazio" }, "N\xE3o consegui carregar agora."));
+      });
+    }
     m.addEventListener("scroll", () => {
       if (n < l.length && m.scrollTop + m.clientHeight > m.scrollHeight - 600) mais();
-    });
-    grid.addEventListener("focusin", () => {
     });
     new MutationObserver(() => {
       const on = document.querySelector(".card.f.on");
