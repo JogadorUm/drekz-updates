@@ -19,7 +19,7 @@
   };
   var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
-  // src/util.js
+  // v2/src/util.js
   var $ = (s, r = document) => r.querySelector(s);
   var $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   function h(tag, attrs, ...kids) {
@@ -51,11 +51,11 @@
     }
     return p[b.length];
   }
-  async function get(url2, { timeout = 15e3, text = true, cache: cache2 } = {}) {
+  async function get(url3, { timeout = 15e3, text = true, cache: cache2 } = {}) {
     const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const t = setTimeout(() => ctl && ctl.abort(), timeout);
     try {
-      const r = await fetch(url2, { signal: ctl && ctl.signal, cache: cache2 });
+      const r = await fetch(url3, { signal: ctl && ctl.signal, cache: cache2 });
       if (!r.ok) throw new Error("HTTP " + r.status);
       return text ? await r.text() : await r.json();
     } finally {
@@ -69,7 +69,7 @@
     return (h2 ? h2 + ":" : "") + p(m) + ":" + p(x);
   };
 
-  // src/nav.js
+  // v2/src/nav.js
   var backs = [];
   var onBack = (fn) => {
     backs.push(fn);
@@ -197,7 +197,7 @@
     }, true);
   }
 
-  // src/ui.js
+  // v2/src/ui.js
   var toast = (m, ms = 3500) => {
     const t = $("#toast");
     t.textContent = m;
@@ -248,7 +248,7 @@
     cfg: "M19.14,12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24,0-.43.17-.47.41l-.36,2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47,0-.59.22L2.74,8.87c-.12.21-.08.47.12.61l2.03,1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03,1.58c-.18.14-.23.41-.12.61l1.92,3.32c.12.22.37.29.59.22l2.39-.96c.5.38,1.03.7,1.62.94l.36,2.54c.05.24.24.41.48.41h3.84c.24,0,.44-.17.47-.41l.36-2.54c.59-.24,1.13-.56,1.62-.94l2.39.96c.22.08.47,0,.59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6 3.6,1.62 3.6,3.6-1.62,3.6-3.6,3.6z"
   };
 
-  // src/store.js
+  // v2/src/store.js
   var P = "drekz2_";
   function rd(k, d) {
     try {
@@ -320,7 +320,7 @@
   };
   var cache = { get: rd, set: wr };
 
-  // src/player.js
+  // v2/src/player.js
   var plat = {
     get avplay() {
       return window.webapis && window.webapis.avplay;
@@ -357,10 +357,10 @@
       if (!ap) throw new Error("AVPlay indispon\xEDvel");
       this.stop();
       const tk = ++this.tk;
-      let url2 = s.url;
-      if (/\.txt(\?|$)/i.test(url2) && !/\|COMPONENT=/.test(url2)) url2 += "|COMPONENT=HLS";
+      let url3 = s.url;
+      if (/\.txt(\?|$)/i.test(url3) && !/\|COMPONENT=/.test(url3)) url3 += "|COMPONENT=HLS";
       try {
-        ap.open(url2);
+        ap.open(url3);
         ap.setDisplayRect(...this.r);
         ap.setDisplayMethod("PLAYER_DISPLAY_MODE_AUTO_ASPECT_RATIO");
         const b = s.live ? BUF[prefs.get().buffer] || BUF.normal : [5, 10];
@@ -756,7 +756,228 @@
     }
   };
 
-  // src/watch.js
+  // v2/src/upd.js
+  var VER = "2.0.2";
+  var D = () => window.__DREKZ || null;
+  var nova = null;
+  var mostrando = false;
+  var snooze = () => {
+    try {
+      return +localStorage.getItem("drekz2_snooze") || 0;
+    } catch (e) {
+      return 0;
+    }
+  };
+  async function verificar(manual) {
+    const d = D();
+    if (!d) {
+      manual && toast("Atualiza\xE7\xE3o autom\xE1tica s\xF3 no app instalado.");
+      return;
+    }
+    try {
+      const j = JSON.parse(await get(d.base + "v2/versao.json?t=" + Date.now(), { cache: "no-store", timeout: 1e4 }));
+      if (j.build > d.build) {
+        nova = j;
+        if (manual || Date.now() > snooze() && !assistindo() && !mostrando) pergunta();
+        else if (manual) toast("Nova vers\xE3o " + j.versao + " dispon\xEDvel");
+      } else {
+        nova = null;
+        manual && toast("Voc\xEA j\xE1 est\xE1 na vers\xE3o mais recente (" + VER + ")");
+      }
+    } catch (e) {
+      manual && toast("Sem conex\xE3o com o servidor de atualiza\xE7\xF5es");
+    }
+  }
+  function pergunta() {
+    if (!nova || mostrando) return;
+    mostrando = true;
+    modal(
+      "Nova vers\xE3o " + (nova.versao || ""),
+      [
+        { t: "Atualizar agora", s: nova.notas || "Melhorias e corre\xE7\xF5es", fn: aplicar },
+        { t: "Depois", s: "Pergunto de novo em 30 minutos", fn: () => {
+          try {
+            localStorage.setItem("drekz2_snooze", String(Date.now() + 18e5));
+          } catch (e) {
+          }
+        } }
+      ],
+      { onClose: () => {
+        mostrando = false;
+      } }
+    );
+  }
+  async function aplicar() {
+    const j = nova, d = D();
+    if (!j || !d) return;
+    toast("Baixando atualiza\xE7\xE3o...", 2e4);
+    try {
+      const r = await fetch(d.base + "v2/" + (j.arquivo || "drekz2.js") + "?b=" + j.build, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const js = await r.text();
+      if (j.tamanho && js.length !== j.tamanho) throw new Error("download incompleto");
+      await gravaCore({ build: j.build, versao: j.versao, js });
+      try {
+        localStorage.removeItem("drekz_boot");
+        localStorage.removeItem("drekz2_snooze");
+      } catch (e) {
+      }
+      toast("Atualizado! Reiniciando...", 3e3);
+      setTimeout(() => location.reload(), 900);
+    } catch (e) {
+      toast("Falha ao atualizar: " + (e && e.message || e));
+    }
+  }
+  function idb(fn) {
+    return new Promise((ok, no) => {
+      const q = indexedDB.open("drekz-core", 1);
+      q.onupgradeneeded = () => q.result.createObjectStore("core");
+      q.onerror = () => no(q.error);
+      q.onsuccess = () => {
+        const t = q.result.transaction("core", "readwrite");
+        fn(t.objectStore("core"));
+        t.oncomplete = () => ok();
+        t.onerror = () => no(t.error);
+      };
+    });
+  }
+  var gravaCore = (o) => idb((s) => s.put(o, "cur"));
+  async function voltarAntigo() {
+    try {
+      await idb((s) => s.delete("cur"));
+      localStorage.setItem("drekz_v2_no", "1");
+      localStorage.removeItem("drekz_boot");
+    } catch (e) {
+    }
+    location.reload();
+  }
+  function iniciarUpd() {
+    if (!D()) return;
+    setTimeout(() => verificar(false), 8e3);
+    setInterval(() => verificar(false), 18e5);
+  }
+
+  // v2/src/track.js
+  var K = "drekz2_trk";
+  var rd2 = (k, d) => {
+    try {
+      const v = localStorage.getItem(k);
+      return v == null ? d : JSON.parse(v);
+    } catch (e) {
+      return d;
+    }
+  };
+  var wr2 = (k, v) => {
+    try {
+      localStorage.setItem(k, JSON.stringify(v));
+    } catch (e) {
+    }
+  };
+  var trk = {
+    ligado() {
+      return rd2(K + "_on", null);
+    },
+    // null = ainda não perguntou
+    set(v) {
+      wr2(K + "_on", !!v);
+      if (!v) wr2(K + "_q", []);
+    },
+    id() {
+      let i = rd2(K + "_id", null);
+      if (!i) {
+        i = Array.from({ length: 10 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.random() * 31 | 0]).join("");
+        wr2(K + "_id", i);
+      }
+      return i;
+    }
+  };
+  var fila = rd2(K + "_q", []);
+  var url = null;
+  var urlT = 0;
+  var envT = 0;
+  var sessao = Date.now().toString(36);
+  var cut = (s, n) => String(s == null ? "" : s).slice(0, n);
+  function track(tipo, d) {
+    if (trk.ligado() !== true) return;
+    const e = { t: Date.now(), k: tipo };
+    if (d) for (const k in d) e[k] = typeof d[k] === "number" || typeof d[k] === "boolean" ? d[k] : cut(d[k], 200);
+    fila.push(e);
+    if (fila.length > 300) fila = fila.slice(-200);
+    wr2(K + "_q", fila);
+    if (fila.length >= 15 || tipo === "js_erro") envia();
+  }
+  var host2 = (u) => {
+    try {
+      return String(u).split("/")[2] || "?";
+    } catch (e) {
+      return "?";
+    }
+  };
+  function aparelho() {
+    const d = window.__DREKZ || {}, ua = navigator.userAgent || "";
+    const tz = /Tizen[ \/]([\d.]+)/.exec(ua), ch = /Chrom(?:e|ium)\/(\d+)/.exec(ua);
+    return {
+      app: "drekz2",
+      ver: VER,
+      build: d.build || 0,
+      plat: window.webapis && window.webapis.avplay ? "tizen" : window.DrekzExo ? "android" : "web",
+      tizen: tz ? tz[1] : "",
+      chrome: ch ? ch[1] : "",
+      tela: screen.width + "x" + screen.height,
+      modelo: (() => {
+        try {
+          return window.webapis.productinfo.getRealModel();
+        } catch (e) {
+          return "";
+        }
+      })(),
+      fw: (() => {
+        try {
+          return window.webapis.productinfo.getFirmware();
+        } catch (e) {
+          return "";
+        }
+      })()
+    };
+  }
+  async function endpoint() {
+    if (url && Date.now() - urlT < 36e5) return url;
+    const d = window.__DREKZ;
+    if (!d) return null;
+    try {
+      const j = JSON.parse(await get(d.base + "v2/config.json?t=" + Date.now(), { timeout: 8e3, cache: "no-store" }));
+      url = j.tracker || null;
+      urlT = Date.now();
+    } catch (e) {
+    }
+    return url;
+  }
+  async function envia() {
+    if (trk.ligado() !== true || !fila.length || Date.now() - envT < 5e3) return;
+    envT = Date.now();
+    const u = await endpoint();
+    if (!u) return;
+    const lote = fila.slice(0, 40);
+    try {
+      const r = await fetch(u, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ id: trk.id(), sessao, dev: aparelho(), ev: lote }) });
+      if (r.ok) {
+        fila = fila.slice(lote.length);
+        wr2(K + "_q", fila);
+        if (fila.length) setTimeout(envia, 6e3);
+      }
+    } catch (e) {
+    }
+  }
+  function iniciarTrack() {
+    window.addEventListener("error", (e) => track("js_erro", { msg: e.message, onde: (e.filename || "").split("/").pop() + ":" + e.lineno }));
+    window.addEventListener("unhandledrejection", (e) => track("js_erro", { msg: "promise: " + (e.reason && e.reason.message || e.reason) }));
+    track("abriu");
+    setInterval(envia, 6e4);
+    document.addEventListener("visibilitychange", () => document.hidden && envia());
+  }
+
+  // v2/src/watch.js
+  var bufT = 0;
   var pl;
   var P2;
   var S = null;
@@ -775,7 +996,15 @@
           grava();
         }
       },
-      buf: (b) => $("#pl").classList.toggle("buf", !!b),
+      buf: (b) => {
+        $("#pl").classList.toggle("buf", !!b);
+        if (b) bufT = Date.now();
+        else if (bufT && S) {
+          const ms = Date.now() - bufT;
+          bufT = 0;
+          ms > 1500 && track("trava", { ms, tipo: S.kind, eng: pl.act === pl.nat ? "nativo" : "web" });
+        }
+      },
       end: () => {
         if (!S) return;
         S.kind === "live" ? erroLive("A transmiss\xE3o terminou") : fimVod();
@@ -903,18 +1132,20 @@
     $("#pl").classList.add("buf");
     const n = ch.variants.length;
     for (let k = 0; k < n; k++) {
-      const i = (vi + k) % n, v = ch.variants[i];
+      const i = (vi + k) % n, v = ch.variants[i], t0 = Date.now();
       try {
         await pl.open({ url: v.url, live: true, manual, ua: v.userAgent, ref: v.referer, clearKey: v.clearKey });
         if (my !== S.tok) return;
         S.vi = i;
         S.okT = Date.now();
+        track("live_ok", { canal: ch.name, fonte: i + 1, ms: Date.now() - t0, eng: pl.act === pl.nat ? "nativo" : "web", host: host2(v.url) });
         $("#pl").classList.remove("buf");
         $("#pl .tt").textContent = ch.num + " \xB7 " + ch.name + (n > 1 ? "  (fonte " + (i + 1) + "/" + n + ")" : "");
         osd(true);
         return;
       } catch (e) {
         if (my !== S.tok || e.message === "cancelado") return;
+        track("live_falha", { canal: ch.name, fonte: i + 1, ms: Date.now() - t0, host: host2(v.url), msg: e.message, manual });
         if (manual) {
           $("#pl").classList.remove("buf");
           toast("Essa fonte n\xE3o abriu. Escolha outra em Fontes.");
@@ -924,12 +1155,14 @@
       }
     }
     $("#pl").classList.remove("buf");
+    track("live_sem_fonte", { canal: ch.name, n });
     toast("Nenhuma fonte abriu esse canal agora.");
   }
   function erroLive(m) {
     if (!S || S.kind !== "live" || S.restart) return;
     if (Date.now() - S.okT > 3e4) S.rt = 0;
     const ch = S.ch, vi = S.vi, my = S.tok;
+    track("live_queda", { canal: ch.name, fonte: vi + 1, tent: S.rt + 1, msg: m, estavel_s: Math.round((Date.now() - S.okT) / 1e3) });
     if (S.rt < 2) {
       S.rt++;
       S.restart = true;
@@ -1016,16 +1249,18 @@
     $("#pl").classList.add("buf");
     const n = S.srcs.length;
     for (let k = 0; k < n; k++) {
-      const j = (i + k) % n;
+      const j = (i + k) % n, t0 = Date.now();
       try {
         await pl.open({ url: S.srcs[j], live: false, manual: true, start });
         if (my !== S.tok) return;
         S.si = j;
+        track("vod_ok", { tipo: S.serie ? "serie" : "filme", fonte: j + 1, ms: Date.now() - t0, eng: pl.act === pl.nat ? "nativo" : "web", host: host2(S.srcs[j]) });
         $("#pl").classList.remove("buf");
         osd(true);
         return;
       } catch (e) {
         if (my !== S.tok || e.message === "cancelado") return;
+        track("vod_falha", { tipo: S.serie ? "serie" : "filme", fonte: j + 1, ms: Date.now() - t0, host: host2(S.srcs[j]), msg: e.message });
         if (manual) {
           toast("Essa fonte n\xE3o abriu.");
           $("#pl").classList.remove("buf");
@@ -1039,6 +1274,7 @@
   }
   function erroVod(m) {
     if (!S || S.kind !== "vod" || S.restart) return;
+    track("vod_queda", { tipo: S.serie ? "serie" : "filme", fonte: S.si + 1, msg: m, pos: Math.round(S.t) });
     if (S.rt < 1) {
       S.rt++;
       S.restart = true;
@@ -1167,7 +1403,7 @@
     return false;
   }
 
-  // src/data.js
+  // v2/src/data.js
   var TMDB = "https://api.themoviedb.org/3";
   var KEY2 = "15d2ea6d0dc1d476efbca3eba2b9bbfb";
   var IMG = "https://image.tmdb.org/t/p/";
@@ -1318,7 +1554,7 @@
     if (b.length) mem.bases = b;
     return b;
   }
-  function url(s, B) {
+  function url2(s, B) {
     s = s.trim();
     if (/^https?:\/\//.test(s)) return s;
     const i = s.indexOf(":");
@@ -1344,7 +1580,7 @@
         for (let i = 1; i < c.length; i++) {
           const f = c[i].trim(), e = f.indexOf("=");
           if (e > 0) for (const m of f.slice(e + 1).split(",")) {
-            const u = url(m, B);
+            const u = url2(m, B);
             u && s.push(u);
           }
         }
@@ -1377,7 +1613,7 @@
       if (!on) continue;
       const c = l.split("	");
       if (c.length < 4) continue;
-      const s = parseInt(c[0]) || 1, e = parseInt(c[1]) || 1, src = c[3].split(",").map((x) => url(x, B)).filter(Boolean);
+      const s = parseInt(c[0]) || 1, e = parseInt(c[1]) || 1, src = c[3].split(",").map((x) => url2(x, B)).filter(Boolean);
       if (!map.has(s)) map.set(s, /* @__PURE__ */ new Map());
       const m = map.get(s);
       m.has(e) ? m.get(e).sources.push(...src) : m.set(e, { n: e, title: "Epis\xF3dio " + e, sources: src });
@@ -1419,7 +1655,7 @@
     for (const k in mem) delete mem[k];
   }
 
-  // src/search.js
+  // v2/src/search.js
   function score(q, qt, it) {
     const t = it.n;
     if (!t) return 0;
@@ -1465,108 +1701,7 @@
     return r.slice(0, 120);
   }
 
-  // src/upd.js
-  var VER = "2.0.1";
-  var D = () => window.__DREKZ || null;
-  var nova = null;
-  var mostrando = false;
-  var snooze = () => {
-    try {
-      return +localStorage.getItem("drekz2_snooze") || 0;
-    } catch (e) {
-      return 0;
-    }
-  };
-  async function verificar(manual) {
-    const d = D();
-    if (!d) {
-      manual && toast("Atualiza\xE7\xE3o autom\xE1tica s\xF3 no app instalado.");
-      return;
-    }
-    try {
-      const j = JSON.parse(await get(d.base + "v2/versao.json?t=" + Date.now(), { cache: "no-store", timeout: 1e4 }));
-      if (j.build > d.build) {
-        nova = j;
-        if (manual || Date.now() > snooze() && !assistindo() && !mostrando) pergunta();
-        else if (manual) toast("Nova vers\xE3o " + j.versao + " dispon\xEDvel");
-      } else {
-        nova = null;
-        manual && toast("Voc\xEA j\xE1 est\xE1 na vers\xE3o mais recente (" + VER + ")");
-      }
-    } catch (e) {
-      manual && toast("Sem conex\xE3o com o servidor de atualiza\xE7\xF5es");
-    }
-  }
-  function pergunta() {
-    if (!nova || mostrando) return;
-    mostrando = true;
-    modal(
-      "Nova vers\xE3o " + (nova.versao || ""),
-      [
-        { t: "Atualizar agora", s: nova.notas || "Melhorias e corre\xE7\xF5es", fn: aplicar },
-        { t: "Depois", s: "Pergunto de novo em 30 minutos", fn: () => {
-          try {
-            localStorage.setItem("drekz2_snooze", String(Date.now() + 18e5));
-          } catch (e) {
-          }
-        } }
-      ],
-      { onClose: () => {
-        mostrando = false;
-      } }
-    );
-  }
-  async function aplicar() {
-    const j = nova, d = D();
-    if (!j || !d) return;
-    toast("Baixando atualiza\xE7\xE3o...", 2e4);
-    try {
-      const r = await fetch(d.base + "v2/" + (j.arquivo || "drekz2.js") + "?b=" + j.build, { cache: "no-store" });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const js = await r.text();
-      if (j.tamanho && js.length !== j.tamanho) throw new Error("download incompleto");
-      await gravaCore({ build: j.build, versao: j.versao, js });
-      try {
-        localStorage.removeItem("drekz_boot");
-        localStorage.removeItem("drekz2_snooze");
-      } catch (e) {
-      }
-      toast("Atualizado! Reiniciando...", 3e3);
-      setTimeout(() => location.reload(), 900);
-    } catch (e) {
-      toast("Falha ao atualizar: " + (e && e.message || e));
-    }
-  }
-  function idb(fn) {
-    return new Promise((ok, no) => {
-      const q = indexedDB.open("drekz-core", 1);
-      q.onupgradeneeded = () => q.result.createObjectStore("core");
-      q.onerror = () => no(q.error);
-      q.onsuccess = () => {
-        const t = q.result.transaction("core", "readwrite");
-        fn(t.objectStore("core"));
-        t.oncomplete = () => ok();
-        t.onerror = () => no(t.error);
-      };
-    });
-  }
-  var gravaCore = (o) => idb((s) => s.put(o, "cur"));
-  async function voltarAntigo() {
-    try {
-      await idb((s) => s.delete("cur"));
-      localStorage.setItem("drekz_v2_no", "1");
-      localStorage.removeItem("drekz_boot");
-    } catch (e) {
-    }
-    location.reload();
-  }
-  function iniciarUpd() {
-    if (!D()) return;
-    setTimeout(() => verificar(false), 8e3);
-    setInterval(() => verificar(false), 18e5);
-  }
-
-  // src/screens.js
+  // v2/src/screens.js
   var VERSAO = "Pre-Alpha " + VER;
   var main = () => $("#main");
   var hist = [];
@@ -1773,6 +1908,10 @@
           recarregar && recarregar();
           toast("Recarregando...", 1500);
         }),
+        lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia s\xF3 dados t\xE9cnicos para eu corrigir problemas. Sem nome, IP ou o que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
+          trk.set(!trk.ligado());
+          if (trk.ligado()) envia();
+        }),
         lin("Verificar atualiza\xE7\xE3o", "Procura uma vers\xE3o nova do Drekz TV 2", "", () => verificar(true)),
         window.__DREKZ ? lin("Voltar ao Drekz TV anterior (0.7.x)", "Desinstala o n\xFAcleo novo e volta ao app antigo embutido", "", () => voltarAntigo()) : null,
         h("div", { class: "vazio" }, "Drekz TV " + VERSAO)
@@ -1830,10 +1969,10 @@
     focus(m.querySelector(".chip.sel"));
   }
 
-  // src/style.css
+  // v2/src/style.css
   var style_default = ':root{--bg:#0b0d12;--bg2:#141821;--card:#1b2030;--tx:#eef1f6;--mu:#9aa3b5;--ac:#7c5cff;--ac2:#2ee6a6;--rd:#ff5d6c}\n*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}\nhtml,body{width:100%;height:100%;overflow:hidden;background:#000;color:var(--tx);font-family:"Segoe UI",Roboto,Arial,sans-serif}\n#app{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:var(--bg)}\nhtml.exo #app,html.exo body{background:transparent}\n#vl{position:absolute;inset:0;background:#000;display:none}#vl video{width:100%;height:100%;object-fit:contain;background:#000}\nhtml.assistindo #vl{display:block}html.assistindo #ui{display:none}html.exo.assistindo #vl{background:transparent}html.exo.assistindo #vl video{visibility:hidden}\n#ui{position:absolute;inset:0;display:flex}\n#rail{width:110px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;padding:36px 0;gap:10px;flex:none}\n#rail .logo{font-weight:800;font-size:22px;color:var(--ac);margin-bottom:24px;letter-spacing:1px}\n.nb{width:86px;height:86px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mu);font-size:15px;cursor:pointer;border:3px solid transparent}\n.nb svg{width:34px;height:34px;fill:currentColor}.nb.sel{color:var(--tx);background:#222a3e}\n#main{flex:1;min-width:0;height:100%;overflow-y:auto;overflow-x:hidden;padding:40px 56px 80px;scrollbar-width:none}\n#main::-webkit-scrollbar{display:none}\nh1{font-size:44px;font-weight:700;margin-bottom:26px}h2{font-size:30px;font-weight:600;margin:30px 0 16px}\n.f{outline:none;border:3px solid transparent;transition:transform .12s,border-color .12s,background .12s}\n.f.on{border-color:var(--ac2);transform:scale(1.05)}\n.rail{display:flex;gap:22px;overflow-x:auto;padding:10px 8px 14px;margin:0 -8px;scrollbar-width:none}.rail::-webkit-scrollbar{display:none}\n.card{flex:none;width:210px;cursor:pointer;border-radius:14px;background:var(--card);overflow:hidden}\n.card .pi{width:100%;height:315px;background:#222 center/cover no-repeat}\n.card .ti{font-size:17px;padding:10px 10px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.card .bar{height:6px;background:#333}.card .bar i{display:block;height:100%;background:var(--ac2)}\n.grid{display:grid;grid-template-columns:repeat(auto-fill,210px);gap:26px 22px;padding:8px}\n.chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}\n.chip{padding:10px 22px;border-radius:30px;background:var(--card);font-size:19px;cursor:pointer;color:var(--mu)}\n.chip.sel{background:var(--ac);color:#fff}\n.chs{display:grid;grid-template-columns:repeat(auto-fill,300px);gap:20px;padding:8px}\n.ch{height:112px;background:var(--card);border-radius:16px;display:flex;align-items:center;gap:16px;padding:0 18px;cursor:pointer;overflow:hidden}\n.ch img{width:76px;height:76px;object-fit:contain;flex:none}.ch .n{font-size:20px;line-height:1.2}.ch small{color:var(--mu);font-size:15px;display:block;margin-top:4px}\n.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:16px 34px;border-radius:14px;background:var(--card);font-size:22px;cursor:pointer;margin-right:14px;min-width:70px}\n.btn.pri{background:var(--ac);color:#fff}\n.det{position:relative;min-height:880px}.det .bg{position:absolute;inset:-40px -56px;background:center/cover;opacity:.25}\n.det .in{position:relative;display:flex;gap:44px}.det .po{width:340px;height:510px;border-radius:16px;background:#222 center/cover;flex:none}\n.det .tx{flex:1;min-width:0}.det h1{margin-bottom:10px}.det .meta{color:var(--mu);font-size:22px;margin-bottom:18px}.det p{font-size:22px;line-height:1.45;max-width:1000px;margin-bottom:26px;color:#d6dbe8}\n.eps{display:grid;grid-template-columns:repeat(auto-fill,150px);gap:14px;margin-top:10px}.ep{padding:16px 0;text-align:center;background:var(--card);border-radius:12px;font-size:21px;cursor:pointer;position:relative;overflow:hidden}\n.ep.vis{color:var(--ac2)}.ep .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--ac2)}\n.kb{display:grid;grid-template-columns:repeat(7,62px);gap:8px;margin-right:36px}.kb .k{height:62px;background:var(--card);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer}\n.sb{display:flex;gap:30px;align-items:flex-start}.sb input{width:100%;font-size:30px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin-bottom:20px}\n.row{display:flex;justify-content:space-between;align-items:center;padding:22px 26px;margin-bottom:12px;background:var(--card);border-radius:14px;font-size:24px;cursor:pointer;max-width:900px}.row small{color:var(--mu);font-size:18px;display:block;margin-top:4px}.row b{color:var(--ac2)}\n#pl{position:absolute;inset:0;display:none;z-index:20}html.assistindo #pl{display:block}\n#pl .top{position:absolute;left:0;right:0;top:0;padding:34px 50px 90px;background:linear-gradient(#000c,#0000);font-size:34px;font-weight:600;opacity:0;transition:opacity .2s}\n#pl .bot{position:absolute;left:0;right:0;bottom:0;padding:90px 60px 40px;background:linear-gradient(#0000,#000d);opacity:0;transition:opacity .2s}\n#pl.osd .top,#pl.osd .bot{opacity:1}\n#pl .pb{height:8px;background:#fff3;border-radius:4px;margin-bottom:10px}#pl .pb i{display:block;height:100%;background:var(--ac2);border-radius:4px;width:0}\n#pl .tm{display:flex;justify-content:space-between;font-size:22px;color:#ccd;margin-bottom:18px}\n#pl .ctl{display:flex;gap:12px;flex-wrap:wrap}#pl .ctl .btn{background:#ffffff22;padding:14px 26px;font-size:22px}\n#pl .sp{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px;border:6px solid #fff4;border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;display:none}\n#pl.buf .sp{display:block}@keyframes sp{to{transform:rotate(360deg)}}\n#gv{position:absolute;left:0;top:0;bottom:0;width:560px;background:#0b0d12ee;padding:26px;overflow-y:auto;display:none;scrollbar-width:none}#gv.on2{display:block}\n#gv .ch{width:100%;margin-bottom:12px;height:90px}#gv .ch img{width:56px;height:56px}\n#toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000c;border:2px solid #fff3;padding:16px 34px;border-radius:30px;font-size:24px;z-index:99;display:none}\n#modal{position:absolute;inset:0;background:#000b;z-index:50;display:none;align-items:center;justify-content:center}\n#modal .box{background:var(--bg2);border-radius:22px;padding:34px 40px;min-width:620px;max-width:1100px;max-height:900px;overflow-y:auto}\n#modal h3{font-size:32px;margin-bottom:20px}#modal .row{max-width:none}\n.vazio{color:var(--mu);font-size:24px;padding:30px 8px}\n';
 
-  // src/main.js
+  // v2/src/main.js
   function escala() {
     const app = $("#app"), w = innerWidth, hh = innerHeight, fill = /[?&]fill=1/.test(location.search);
     const s = Math.min(w / 1920, hh / 1080), W = fill ? w / s : 1920, H = fill ? hh / s : 1080;
@@ -1885,6 +2024,15 @@
     } catch (e) {
     }
     iniciarUpd();
+    iniciarTrack();
+    if (trk.ligado() === null) setTimeout(() => modal("Ajude a melhorar o Drekz TV", [
+      { t: "Permitir relat\xF3rios de erro", s: "Envia s\xF3 dados t\xE9cnicos (modelo da TV, vers\xE3o, erros de canal). Sem nome, sem IP e sem o que voc\xEA assiste. D\xE1 para desligar em Ajustes.", fn: () => {
+        trk.set(true);
+      } },
+      { t: "N\xE3o permitir", s: "O app funciona igual, nada \xE9 enviado.", fn: () => {
+        trk.set(false);
+      } }
+    ]), 1800);
   }
   document.readyState === "loading" ? addEventListener("DOMContentLoaded", boot) : boot();
 })();
