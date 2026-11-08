@@ -106,6 +106,7 @@
     const c = $(".f.on");
     c && c !== el && c.classList.remove("on");
     el.classList.add("on");
+    el.dispatchEvent(new Event("drekzfoco"));
     if (scroll) {
       try {
         el.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -197,57 +198,6 @@
     }, true);
   }
 
-  // src/ui.js
-  var toast = (m, ms = 3500) => {
-    const t = $("#toast");
-    t.textContent = m;
-    t.style.display = "block";
-    clearTimeout(toast.t);
-    toast.t = setTimeout(() => t.style.display = "none", ms);
-  };
-  function modal(titulo, linhas, { onClose } = {}) {
-    const m = $("#modal"), box = h("div", { class: "box" }, h("h3", null, titulo)), prev = $(".f.on");
-    linhas.forEach((l) => box.append(h(
-      "div",
-      { class: "row f" + (l.sel ? " sel" : ""), onclick: () => {
-        fecha();
-        l.fn && l.fn();
-      } },
-      h("div", null, l.t, l.s && h("small", null, l.s)),
-      l.sel ? h("b", null, "\u25CF") : null
-    )));
-    m.innerHTML = "";
-    m.append(box);
-    m.style.display = "flex";
-    setScope(() => m);
-    const off = onBack(() => fecha());
-    function fecha() {
-      m.style.display = "none";
-      off();
-      setScope(() => $("#ui"));
-      onClose && onClose();
-      if (prev && prev.isConnected) focus(prev);
-    }
-    const s = box.querySelector(".sel") || box.querySelector(".f");
-    focus(s);
-    return fecha;
-  }
-  var card = (it, fn, pct) => h(
-    "div",
-    { class: "card f", onclick: fn },
-    h("div", { class: "pi", style: it.poster ? "background-image:url('" + it.poster + "')" : "" }),
-    pct != null ? h("div", { class: "bar" }, h("i", { style: "width:" + Math.round(pct * 100) + "%" })) : null,
-    h("div", { class: "ti" }, it.title)
-  );
-  var SVG = {
-    home: "M10,20v-6h4v6h5v-8h3L12,3 2,12h3v8z",
-    tv: "M21,6h-7.59l3.29-3.29L16,2l-4,4-4-4-.71.71L10.59,6H3c-1.1,0-2,.89-2,2v12c0,1.1.9,2 2,2h18c1.1,0 2-.9 2-2V8c0-1.11-.9-2-2-2zM21,20H3V8h18v12zM9,10v8l7-4z",
-    movie: "M18,4l2,4h-3l-2-4h-2l2,4h-3l-2-4H8l2,4H7L5,4H4c-1.1,0-1.99.9-1.99,2L2,18c0,1.1.9,2 2,2h16c1.1,0 2-.9 2-2V4h-4z",
-    serie: "M21,3H3c-1.1,0-2,.9-2,2v12c0,1.1.9,2 2,2h5v2h8v-2h5c1.1,0 1.99-.9 1.99-2L23,5c0-1.1-.9-2-2-2zm0,14H3V5h18v12z",
-    search: "M15.5,14h-.79l-.28-.27C15.41,12.59 16,11.11 16,9.5 16,5.91 13.09,3 9.5,3S3,5.91 3,9.5 5.91,16 9.5,16c1.61,0 3.09-.59 4.23-1.57l.27.28v.79l5,4.99L20.49,19l-4.99-5zM9.5,14C7.01,14 5,11.99 5,9.5S7.01,5 9.5,5 14,7.01 14,9.5 11.99,14 9.5,14z",
-    cfg: "M19.14,12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24,0-.43.17-.47.41l-.36,2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47,0-.59.22L2.74,8.87c-.12.21-.08.47.12.61l2.03,1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03,1.58c-.18.14-.23.41-.12.61l1.92,3.32c.12.22.37.29.59.22l2.39-.96c.5.38,1.03.7,1.62.94l.36,2.54c.05.24.24.41.48.41h3.84c.24,0,.44-.17.47-.41l.36-2.54c.59-.24,1.13-.56,1.62-.94l2.39.96c.22.08.47,0,.59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6 3.6,1.62 3.6,3.6-1.62,3.6-3.6,3.6z"
-  };
-
   // src/store.js
   var P = "drekz2_";
   function rd(k, d) {
@@ -330,6 +280,374 @@
   } };
   var cache = { get: rd, set: wr };
 
+  // src/data.js
+  var TMDB = "https://api.themoviedb.org/3";
+  var KEY2 = "15d2ea6d0dc1d476efbca3eba2b9bbfb";
+  var IMG = "https://image.tmdb.org/t/p/";
+  var base = (k) => {
+    const p = prefs.get();
+    return (k === "c" ? p.urlCanais : p.urlFilmes) || (k === "c" ? "https://canais-saimo.pages.dev/" : "https://filmes-saimo.pages.dev/");
+  };
+  var CATS = ["TV Aberta", "Filmes e S\xE9ries", "Esportes", "Not\xEDcias", "Infantil", "Document\xE1rios", "Pluto TV", "24 Horas", "Variedades"];
+  var mem = {};
+  var tx = {};
+  function txt(u) {
+    const e = tx[u];
+    if (e && Date.now() - e.t < 18e5) return e.p;
+    const p = get(u, { timeout: 2e4 });
+    tx[u] = { t: Date.now(), p };
+    p.catch(() => {
+      delete tx[u];
+    });
+    return p;
+  }
+  function parseCanais(txt2) {
+    const out = [];
+    let c = null, v = null, n = 1;
+    for (let l of txt2.split(/\r?\n/)) {
+      l = l.trim();
+      if (!l || l[0] === "#") continue;
+      const i = l.indexOf(":");
+      if (i < 0) continue;
+      const k = l.slice(0, i).trim().toLowerCase(), val = l.slice(i + 1).trim();
+      if (k === "canal") {
+        if (c && c.variants.length) out.push(c);
+        c = { id: "ch_" + n, name: val, cat: "Variedades", logo: "", variants: [] };
+        n++;
+        v = null;
+      } else if (c) {
+        if (k === "categoria") c.cat = val;
+        else if (k === "logo") c.logo = val;
+        else if (k === "fonte") {
+          v = { url: val };
+          c.variants.push(v);
+        } else if (v) {
+          if (k === "qualidade") v.quality = val;
+          else if (k === "referer") v.referer = val;
+          else if (k === "agente") v.userAgent = val;
+          else if (k === "chave") v.clearKey = val;
+        }
+      }
+    }
+    if (c && c.variants.length) out.push(c);
+    const o = (x) => {
+      const i = CATS.indexOf(x.cat);
+      return i < 0 ? CATS.length : i;
+    };
+    out.forEach((x, i) => x._i = i);
+    out.sort((a, b) => o(a) - o(b) || a._i - b._i);
+    out.forEach((x, i) => x.num = i + 1);
+    return out;
+  }
+  async function canais(force) {
+    if (mem.canais && !force) return mem.canais;
+    try {
+      const t = await get(base("c") + "catalogo.txt");
+      const r = parseCanais(t);
+      if (r.length) {
+        cache.set("canais", r);
+        mem.canais = r;
+        return r;
+      }
+    } catch (e) {
+    }
+    return mem.canais = cache.get("canais", []);
+  }
+  function categorias(list) {
+    const s = [];
+    list.forEach((c) => s.includes(c.cat) || s.push(c.cat));
+    return s.sort((a, b) => {
+      const i = CATS.indexOf(a), j = CATS.indexOf(b);
+      return (i < 0 ? 99 : i) - (j < 0 ? 99 : j);
+    });
+  }
+  var poster = (p, w) => !p ? "" : /^https?:/.test(p) ? p : IMG + w + p;
+  async function fichas() {
+    if (mem.fichas) return mem.fichas;
+    try {
+      const t = await get(base("f") + "fichas.txt");
+      const out = [];
+      for (const l of t.split(/\r?\n/)) {
+        const o = l.split("	");
+        if (o.length < 5) continue;
+        const serie = o[0] === "s", title = o[1].trim(), L = title[0].toUpperCase();
+        out.push({
+          id: (serie ? "s_" : "f_") + title,
+          title,
+          serie,
+          tmdb: parseInt(o[2]) || 0,
+          poster: poster(o[3].trim(), "w342"),
+          genres: o[4].split(",").map((x) => x.trim()).filter(Boolean),
+          letra: /[A-Z]/.test(L) ? L : "#",
+          n: norm(title)
+        });
+      }
+      if (out.length) {
+        mem.fichas = out;
+        return out;
+      }
+    } catch (e) {
+    }
+    return mem.fichas = [];
+  }
+  async function destaques() {
+    if (mem.dest) return mem.dest;
+    try {
+      const t = await get(base("f") + "destaques.txt");
+      const rails = [];
+      let r = null, capa = IMG + "w342";
+      for (let l of t.split(/\r?\n/)) {
+        l = l.trim();
+        if (!l || l[0] === "#") continue;
+        if (l.startsWith("capa:")) capa = l.slice(5).trim();
+        else if (l.startsWith("fila	")) {
+          r = { titulo: l.slice(5).trim(), itens: [] };
+          rails.push(r);
+        } else if (r) {
+          const f = l.split("	");
+          if (f.length < 3) continue;
+          const serie = f[0].trim() !== "f", title = f[1].trim(), p = (f[4] || "").trim();
+          r.itens.push({
+            id: (serie ? "s_" : "f_") + title,
+            title,
+            serie,
+            letra: f[2].trim(),
+            year: (f[3] || "").trim(),
+            poster: p ? /^https?:/.test(p) ? p : capa + p : "",
+            genres: []
+          });
+        }
+      }
+      if (rails.length) {
+        cache.set("dest", rails);
+        return mem.dest = rails;
+      }
+    } catch (e) {
+    }
+    return mem.dest = cache.get("dest", []);
+  }
+  async function bases() {
+    if (mem.bases) return mem.bases;
+    const b = [];
+    const ts = await Promise.all(["bases.txt", "indice.txt"].map((f) => txt(base("f") + f).catch(() => "")));
+    for (const t of ts) for (const l of t.split(/\r?\n/)) {
+      const m = /^\s*(?:base\s*:)?\s*(\d+)\s*[\s:=]\s*(https?:\/\/\S+)/i.exec(l);
+      if (m && !b[+m[1]]) b[+m[1]] = m[2].trim();
+    }
+    if (b.length) mem.bases = b;
+    return b;
+  }
+  function url(s, B) {
+    s = s.trim();
+    if (/^https?:\/\//.test(s)) return s;
+    const i = s.indexOf(":");
+    if (i <= 0 || i === s.length - 1) return "";
+    const n = parseInt(s.slice(0, i), 10), r = B[n];
+    if (isNaN(n) || !r) return "";
+    const o = s.slice(i + 1);
+    return o.includes(".") ? r + o : r + o + ".mp4";
+  }
+  var letra = (it) => {
+    const L = (it.letra || it.title[0]).toUpperCase();
+    return /[A-Z]/.test(L) ? L : "#";
+  };
+  async function fontesFilme(it) {
+    if (it.sources && it.sources.length) return it.sources;
+    const [B, t] = await Promise.all([bases(), txt(base("f") + "filmes-" + letra(it) + ".txt")]);
+    for (const l of t.split(/\r?\n/)) {
+      const c = l.split("	");
+      if (c.length < 2) continue;
+      const nm = c[0].trim();
+      if (nm === it.title || nm.startsWith(it.title)) {
+        const s = [];
+        for (let i = 1; i < c.length; i++) {
+          const f = c[i].trim(), e = f.indexOf("=");
+          if (e > 0) for (const m of f.slice(e + 1).split(",")) {
+            const u = url(m, B);
+            u && s.push(u);
+          }
+        }
+        return it.sources = s;
+      }
+    }
+    return [];
+  }
+  async function temporadas(it) {
+    if (it.seasons) return it.seasons;
+    const L = letra(it), bp = bases();
+    const idx = await txt(base("f") + "series-" + L + ".txt");
+    let k = 0;
+    for (const l of idx.split(/\r?\n/)) {
+      const c = l.split("	");
+      if (c.length >= 3 && c[0].trim() === it.title) {
+        k = parseInt(c[2].trim(), 10) || 0;
+        break;
+      }
+    }
+    const [B, t] = await Promise.all([bp, txt(base("f") + "series-" + L + "-" + k + ".txt")]);
+    const map = /* @__PURE__ */ new Map();
+    let on = false;
+    for (const l of t.split(/\r?\n/)) {
+      if (l[0] === "@") {
+        if (on) break;
+        on = l.slice(1).split("	")[0].trim() === it.title;
+        continue;
+      }
+      if (!on) continue;
+      const c = l.split("	");
+      if (c.length < 4) continue;
+      const s = parseInt(c[0]) || 1, e = parseInt(c[1]) || 1, src = c[3].split(",").map((x) => url(x, B)).filter(Boolean);
+      if (!map.has(s)) map.set(s, /* @__PURE__ */ new Map());
+      const m = map.get(s);
+      m.has(e) ? m.get(e).sources.push(...src) : m.set(e, { n: e, title: "Epis\xF3dio " + e, sources: src });
+    }
+    const out = [...map].map(([s, m]) => ({ n: s, eps: [...m.values()].sort((a, b) => a.n - b.n) })).sort((a, b) => a.n - b.n);
+    return it.seasons = out;
+  }
+  async function detalhes(it) {
+    if (it._det) return it;
+    it._det = 1;
+    const f = (await fichas()).find((x) => x.id === it.id);
+    if (f) {
+      it.tmdb = f.tmdb;
+      it.genres = f.genres;
+      it.poster = it.poster || f.poster;
+    }
+    if (!it.tmdb) return it;
+    try {
+      const j = await get("".concat(TMDB, "/").concat(it.serie ? "tv" : "movie", "/").concat(it.tmdb, "?api_key=").concat(KEY2, "&language=pt-BR"), { text: false });
+      it.sinopse = j.overview || "";
+      it.nota = j.vote_average || 0;
+      it.ano = (j.release_date || j.first_air_date || "").slice(0, 4);
+      if (j.backdrop_path) it.fundo = IMG + "w1280" + j.backdrop_path;
+      if (j.poster_path && !it.poster) it.poster = IMG + "w342" + j.poster_path;
+      if (j.genres && j.genres.length) it.genres = j.genres.map((g) => g.name);
+    } catch (e) {
+    }
+    return it;
+  }
+  async function tmdbBusca(q) {
+    try {
+      const j = await get("".concat(TMDB, "/search/multi?api_key=").concat(KEY2, "&language=pt-BR&query=").concat(encodeURIComponent(q)), { text: false, timeout: 8e3 });
+      return (j.results || []).filter((r) => r.media_type === "movie" || r.media_type === "tv").map((r) => ({ tmdb: r.id, tv: r.media_type === "tv" }));
+    } catch (e) {
+      return [];
+    }
+  }
+  function recarregar() {
+    for (const k in mem) delete mem[k];
+  }
+  var PROV = [
+    { n: "Netflix", id: "8", c: "#e50914" },
+    { n: "Prime Video", id: "119|9", c: "#00a8e1" },
+    { n: "Disney+", id: "337", c: "#2b59ff" },
+    { n: "Max", id: "1899|384", c: "#8b5cf6" },
+    { n: "Paramount+", id: "531", c: "#1e7bff" },
+    { n: "Apple TV+", id: "350|2", c: "#9aa0a6" },
+    { n: "Globoplay", id: "307", c: "#ff5a1f" },
+    { n: "Crunchyroll", id: "283", c: "#f47521" }
+  ];
+  async function porTipo(chave, serie) {
+    const [ds, f] = await Promise.all([destaques(), fichas()]), by = new Map(f.map((x) => [x.id, x])), seen = /* @__PURE__ */ new Set(), out = [];
+    ds.filter((r) => norm(r.titulo).includes(chave)).forEach((r) => r.itens.forEach((it) => {
+      if (it.serie !== serie || seen.has(it.id)) return;
+      seen.add(it.id);
+      out.push(by.get(it.id) || it);
+    }));
+    f.forEach((x) => {
+      if (x.serie === serie && !seen.has(x.id) && x.genres.some((g) => norm(g).includes(chave))) {
+        seen.add(x.id);
+        out.push(x);
+      }
+    });
+    return out;
+  }
+  async function porProvedor(p, serie) {
+    const K2 = "prov_" + p.id + (serie ? "t" : "m"), c = cache.get(K2, null);
+    let ids;
+    if (c && Date.now() - c.t < 432e5) ids = c.ids;
+    else {
+      const ty = serie ? "tv" : "movie", get1 = async (pg) => {
+        try {
+          const j = await get("".concat(TMDB, "/discover/").concat(ty, "?api_key=").concat(KEY2, "&language=pt-BR&watch_region=BR&with_watch_providers=").concat(encodeURIComponent(p.id), "&with_watch_monetization_types=flatrate&sort_by=popularity.desc&page=").concat(pg), { text: false, timeout: 1e4 });
+          return (j.results || []).map((x) => x.id);
+        } catch (e) {
+          return [];
+        }
+      };
+      ids = (await Promise.all([1, 2, 3, 4, 5, 6].map(get1))).flat();
+      if (ids.length) cache.set(K2, { t: Date.now(), ids });
+    }
+    const pos = new Map(ids.map((id, i) => [id, i])), f = await fichas();
+    return f.filter((x) => x.serie === serie && x.tmdb && pos.has(x.tmdb)).sort((a, b) => pos.get(a.tmdb) - pos.get(b.tmdb));
+  }
+
+  // src/ui.js
+  var toast = (m, ms = 3500) => {
+    const t = $("#toast");
+    t.textContent = m;
+    t.style.display = "block";
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => t.style.display = "none", ms);
+  };
+  function modal(titulo, linhas, { onClose } = {}) {
+    const m = $("#modal"), box = h("div", { class: "box" }, h("h3", null, titulo)), prev = $(".f.on");
+    linhas.forEach((l) => box.append(h(
+      "div",
+      { class: "row f" + (l.sel ? " sel" : ""), onclick: () => {
+        fecha();
+        l.fn && l.fn();
+      } },
+      h("div", null, l.t, l.s && h("small", null, l.s)),
+      l.sel ? h("b", null, "\u25CF") : null
+    )));
+    m.innerHTML = "";
+    m.append(box);
+    m.style.display = "flex";
+    setScope(() => m);
+    const off = onBack(() => fecha());
+    function fecha() {
+      m.style.display = "none";
+      off();
+      setScope(() => $("#ui"));
+      onClose && onClose();
+      if (prev && prev.isConnected) focus(prev);
+    }
+    const s = box.querySelector(".sel") || box.querySelector(".f");
+    focus(s);
+    return fecha;
+  }
+  var aquece = 0;
+  var card = (it, fn, pct) => {
+    const c = h(
+      "div",
+      { class: "card f", onclick: fn },
+      h("div", { class: "pi", style: it.poster ? "background-image:url('" + it.poster + "')" : "" }),
+      pct != null ? h("div", { class: "bar" }, h("i", { style: "width:" + Math.round(pct * 100) + "%" })) : null,
+      h("div", { class: "ti" }, it.title)
+    );
+    c.addEventListener("drekzfoco", () => {
+      clearTimeout(aquece);
+      aquece = setTimeout(() => {
+        if (!c.classList.contains("on") || !it.title) return;
+        try {
+          (it.serie ? temporadas(it) : fontesFilme(it)).catch(() => {
+          });
+        } catch (e) {
+        }
+      }, 500);
+    });
+    return c;
+  };
+  var SVG = {
+    home: "M10,20v-6h4v6h5v-8h3L12,3 2,12h3v8z",
+    tv: "M21,6h-7.59l3.29-3.29L16,2l-4,4-4-4-.71.71L10.59,6H3c-1.1,0-2,.89-2,2v12c0,1.1.9,2 2,2h18c1.1,0 2-.9 2-2V8c0-1.11-.9-2-2-2zM21,20H3V8h18v12zM9,10v8l7-4z",
+    movie: "M18,4l2,4h-3l-2-4h-2l2,4h-3l-2-4H8l2,4H7L5,4H4c-1.1,0-1.99.9-1.99,2L2,18c0,1.1.9,2 2,2h16c1.1,0 2-.9 2-2V4h-4z",
+    serie: "M21,3H3c-1.1,0-2,.9-2,2v12c0,1.1.9,2 2,2h5v2h8v-2h5c1.1,0 1.99-.9 1.99-2L23,5c0-1.1-.9-2-2-2zm0,14H3V5h18v12z",
+    search: "M15.5,14h-.79l-.28-.27C15.41,12.59 16,11.11 16,9.5 16,5.91 13.09,3 9.5,3S3,5.91 3,9.5 5.91,16 9.5,16c1.61,0 3.09-.59 4.23-1.57l.27.28v.79l5,4.99L20.49,19l-4.99-5zM9.5,14C7.01,14 5,11.99 5,9.5S7.01,5 9.5,5 14,7.01 14,9.5 11.99,14 9.5,14z",
+    cfg: "M19.14,12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24,0-.43.17-.47.41l-.36,2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47,0-.59.22L2.74,8.87c-.12.21-.08.47.12.61l2.03,1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03,1.58c-.18.14-.23.41-.12.61l1.92,3.32c.12.22.37.29.59.22l2.39-.96c.5.38,1.03.7,1.62.94l.36,2.54c.05.24.24.41.48.41h3.84c.24,0,.44-.17.47-.41l.36-2.54c.59-.24,1.13-.56,1.62-.94l2.39.96c.22.08.47,0,.59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6 3.6,1.62 3.6,3.6-1.62,3.6-3.6,3.6z"
+  };
+
   // src/player.js
   var plat = {
     get avplay() {
@@ -374,7 +692,7 @@
         ap.open(url3);
         ap.setDisplayRect(...this.r);
         ap.setDisplayMethod("PLAYER_DISPLAY_MODE_AUTO_ASPECT_RATIO");
-        const b = s.live ? BUF[prefs.get().buffer] || BUF.normal : [5, 10];
+        const b = s.live ? BUF[prefs.get().buffer] || BUF.normal : [3, 8];
         ap.setBufferingParam("PLAYER_BUFFER_FOR_PLAY", "PLAYER_BUFFER_SIZE_IN_SECOND", b[0]);
         ap.setBufferingParam("PLAYER_BUFFER_FOR_RESUME", "PLAYER_BUFFER_SIZE_IN_SECOND", b[1]);
         if (s.ref || s.ua) {
@@ -398,7 +716,7 @@
           onerror: (e) => tk === this.tk && this.ok && this.ev.err && this.ev.err("Erro AVPlay: " + e)
         });
         await new Promise((res, rej) => {
-          const t0 = Date.now(), lim = s.live && !s.manual ? 12e3 : s.live ? 3e4 : 115e3, iv = setInterval(() => {
+          const t0 = Date.now(), lim = s.live ? s.manual ? 3e4 : 12e3 : s.manual ? 6e4 : 25e3, iv = setInterval(() => {
             if (tk !== this.tk) {
               clearInterval(iv);
               rej(new Error(CANCEL));
@@ -523,7 +841,7 @@
           clearTimeout(tm);
           this.cb = null;
           f(x);
-        }, tm = setTimeout(() => done(rej, new Error("Tempo esgotado (" + host(s.url) + ")")), s.live && !s.manual ? 15e3 : s.live ? 3e4 : 115e3);
+        }, tm = setTimeout(() => done(rej, new Error("Tempo esgotado (" + host(s.url) + ")")), s.live ? s.manual ? 3e4 : 15e3 : s.manual ? 6e4 : 25e3);
         this.cb = {
           ready: () => tk !== this.tk ? done(rej, new Error(CANCEL)) : (document.documentElement.classList.add("exo"), this.rect(...this.r), done(res)),
           err: (m) => done(rej, new Error("Falha no player nativo (" + host(s.url) + "): " + m))
@@ -638,7 +956,7 @@
         }, tm = setTimeout(() => {
           fim();
           rej(new Error("Sem imagem (" + host(s.url) + ")"));
-        }, s.webT || (s.live && !s.manual ? 15e3 : s.live ? 3e4 : 6e4));
+        }, s.webT || (s.live ? s.manual ? 3e4 : 15e3 : s.manual ? 6e4 : 25e3));
         v.addEventListener("playing", on);
         v.addEventListener("resize", on);
         v.addEventListener("error", er);
@@ -779,7 +1097,7 @@
   };
 
   // src/upd.js
-  var VER = "2.0.6";
+  var VER = "2.0.7";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -914,7 +1232,7 @@
     }
   };
   var fila = rd2(K + "_q", []);
-  var url = null;
+  var url2 = null;
   var urlT = 0;
   var envT = 0;
   var sessao = Date.now().toString(36);
@@ -963,16 +1281,16 @@
     };
   }
   async function endpoint() {
-    if (url && Date.now() - urlT < 36e5) return url;
+    if (url2 && Date.now() - urlT < 36e5) return url2;
     const d = window.__DREKZ;
     if (!d) return null;
     try {
       const j = JSON.parse(await get(d.base + "v2/config.json?t=" + Date.now(), { timeout: 8e3, cache: "no-store" }));
-      url = j.tracker || null;
+      url2 = j.tracker || null;
       urlT = Date.now();
     } catch (e) {
     }
-    return url;
+    return url2;
   }
   async function envia() {
     if (trk.ligado() !== true || !fila.length || Date.now() - envT < 5e3) return;
@@ -1284,7 +1602,7 @@
     for (let k = 0; k < n; k++) {
       const j = (i + k) % n, t0 = Date.now();
       try {
-        await pl.open({ url: S.srcs[j], live: false, manual: true, start });
+        await pl.open({ url: S.srcs[j], live: false, manual: !!manual, start });
         if (!S || my !== S.tok) return;
         S.si = j;
         fonteOk.set(fk, S.srcs[j]);
@@ -1458,302 +1776,6 @@
     return false;
   }
 
-  // src/data.js
-  var TMDB = "https://api.themoviedb.org/3";
-  var KEY2 = "15d2ea6d0dc1d476efbca3eba2b9bbfb";
-  var IMG = "https://image.tmdb.org/t/p/";
-  var base = (k) => {
-    const p = prefs.get();
-    return (k === "c" ? p.urlCanais : p.urlFilmes) || (k === "c" ? "https://canais-saimo.pages.dev/" : "https://filmes-saimo.pages.dev/");
-  };
-  var CATS = ["TV Aberta", "Filmes e S\xE9ries", "Esportes", "Not\xEDcias", "Infantil", "Document\xE1rios", "Pluto TV", "24 Horas", "Variedades"];
-  var mem = {};
-  function parseCanais(txt) {
-    const out = [];
-    let c = null, v = null, n = 1;
-    for (let l of txt.split(/\r?\n/)) {
-      l = l.trim();
-      if (!l || l[0] === "#") continue;
-      const i = l.indexOf(":");
-      if (i < 0) continue;
-      const k = l.slice(0, i).trim().toLowerCase(), val = l.slice(i + 1).trim();
-      if (k === "canal") {
-        if (c && c.variants.length) out.push(c);
-        c = { id: "ch_" + n, name: val, cat: "Variedades", logo: "", variants: [] };
-        n++;
-        v = null;
-      } else if (c) {
-        if (k === "categoria") c.cat = val;
-        else if (k === "logo") c.logo = val;
-        else if (k === "fonte") {
-          v = { url: val };
-          c.variants.push(v);
-        } else if (v) {
-          if (k === "qualidade") v.quality = val;
-          else if (k === "referer") v.referer = val;
-          else if (k === "agente") v.userAgent = val;
-          else if (k === "chave") v.clearKey = val;
-        }
-      }
-    }
-    if (c && c.variants.length) out.push(c);
-    const o = (x) => {
-      const i = CATS.indexOf(x.cat);
-      return i < 0 ? CATS.length : i;
-    };
-    out.forEach((x, i) => x._i = i);
-    out.sort((a, b) => o(a) - o(b) || a._i - b._i);
-    out.forEach((x, i) => x.num = i + 1);
-    return out;
-  }
-  async function canais(force) {
-    if (mem.canais && !force) return mem.canais;
-    try {
-      const t = await get(base("c") + "catalogo.txt");
-      const r = parseCanais(t);
-      if (r.length) {
-        cache.set("canais", r);
-        mem.canais = r;
-        return r;
-      }
-    } catch (e) {
-    }
-    return mem.canais = cache.get("canais", []);
-  }
-  function categorias(list) {
-    const s = [];
-    list.forEach((c) => s.includes(c.cat) || s.push(c.cat));
-    return s.sort((a, b) => {
-      const i = CATS.indexOf(a), j = CATS.indexOf(b);
-      return (i < 0 ? 99 : i) - (j < 0 ? 99 : j);
-    });
-  }
-  var poster = (p, w) => !p ? "" : /^https?:/.test(p) ? p : IMG + w + p;
-  async function fichas() {
-    if (mem.fichas) return mem.fichas;
-    try {
-      const t = await get(base("f") + "fichas.txt");
-      const out = [];
-      for (const l of t.split(/\r?\n/)) {
-        const o = l.split("	");
-        if (o.length < 5) continue;
-        const serie = o[0] === "s", title = o[1].trim(), L = title[0].toUpperCase();
-        out.push({
-          id: (serie ? "s_" : "f_") + title,
-          title,
-          serie,
-          tmdb: parseInt(o[2]) || 0,
-          poster: poster(o[3].trim(), "w342"),
-          genres: o[4].split(",").map((x) => x.trim()).filter(Boolean),
-          letra: /[A-Z]/.test(L) ? L : "#",
-          n: norm(title)
-        });
-      }
-      if (out.length) {
-        mem.fichas = out;
-        return out;
-      }
-    } catch (e) {
-    }
-    return mem.fichas = [];
-  }
-  async function destaques() {
-    if (mem.dest) return mem.dest;
-    try {
-      const t = await get(base("f") + "destaques.txt");
-      const rails = [];
-      let r = null, capa = IMG + "w342";
-      for (let l of t.split(/\r?\n/)) {
-        l = l.trim();
-        if (!l || l[0] === "#") continue;
-        if (l.startsWith("capa:")) capa = l.slice(5).trim();
-        else if (l.startsWith("fila	")) {
-          r = { titulo: l.slice(5).trim(), itens: [] };
-          rails.push(r);
-        } else if (r) {
-          const f = l.split("	");
-          if (f.length < 3) continue;
-          const serie = f[0].trim() !== "f", title = f[1].trim(), p = (f[4] || "").trim();
-          r.itens.push({
-            id: (serie ? "s_" : "f_") + title,
-            title,
-            serie,
-            letra: f[2].trim(),
-            year: (f[3] || "").trim(),
-            poster: p ? /^https?:/.test(p) ? p : capa + p : "",
-            genres: []
-          });
-        }
-      }
-      if (rails.length) {
-        cache.set("dest", rails);
-        return mem.dest = rails;
-      }
-    } catch (e) {
-    }
-    return mem.dest = cache.get("dest", []);
-  }
-  async function bases() {
-    if (mem.bases) return mem.bases;
-    const b = [];
-    for (const f of ["bases.txt", "indice.txt"]) {
-      try {
-        const t = await get(base("f") + f + "?t=" + Date.now());
-        for (const l of t.split(/\r?\n/)) {
-          const m = /^\s*(?:base\s*:)?\s*(\d+)\s*[\s:=]\s*(https?:\/\/\S+)/i.exec(l);
-          if (m && !b[+m[1]]) b[+m[1]] = m[2].trim();
-        }
-      } catch (e) {
-      }
-    }
-    if (b.length) mem.bases = b;
-    return b;
-  }
-  function url2(s, B) {
-    s = s.trim();
-    if (/^https?:\/\//.test(s)) return s;
-    const i = s.indexOf(":");
-    if (i <= 0 || i === s.length - 1) return "";
-    const n = parseInt(s.slice(0, i), 10), r = B[n];
-    if (isNaN(n) || !r) return "";
-    const o = s.slice(i + 1);
-    return o.includes(".") ? r + o : r + o + ".mp4";
-  }
-  var letra = (it) => {
-    const L = (it.letra || it.title[0]).toUpperCase();
-    return /[A-Z]/.test(L) ? L : "#";
-  };
-  async function fontesFilme(it) {
-    if (it.sources && it.sources.length) return it.sources;
-    const B = await bases(), t = await get(base("f") + "filmes-" + letra(it) + ".txt?t=" + Date.now());
-    for (const l of t.split(/\r?\n/)) {
-      const c = l.split("	");
-      if (c.length < 2) continue;
-      const nm = c[0].trim();
-      if (nm === it.title || nm.startsWith(it.title)) {
-        const s = [];
-        for (let i = 1; i < c.length; i++) {
-          const f = c[i].trim(), e = f.indexOf("=");
-          if (e > 0) for (const m of f.slice(e + 1).split(",")) {
-            const u = url2(m, B);
-            u && s.push(u);
-          }
-        }
-        return it.sources = s;
-      }
-    }
-    return [];
-  }
-  async function temporadas(it) {
-    if (it.seasons) return it.seasons;
-    const B = await bases(), L = letra(it);
-    const idx = await get(base("f") + "series-" + L + ".txt?t=" + Date.now());
-    let k = 0;
-    for (const l of idx.split(/\r?\n/)) {
-      const c = l.split("	");
-      if (c.length >= 3 && c[0].trim() === it.title) {
-        k = parseInt(c[2].trim(), 10) || 0;
-        break;
-      }
-    }
-    const t = await get(base("f") + "series-" + L + "-" + k + ".txt?t=" + Date.now());
-    const map = /* @__PURE__ */ new Map();
-    let on = false;
-    for (const l of t.split(/\r?\n/)) {
-      if (l[0] === "@") {
-        if (on) break;
-        on = l.slice(1).split("	")[0].trim() === it.title;
-        continue;
-      }
-      if (!on) continue;
-      const c = l.split("	");
-      if (c.length < 4) continue;
-      const s = parseInt(c[0]) || 1, e = parseInt(c[1]) || 1, src = c[3].split(",").map((x) => url2(x, B)).filter(Boolean);
-      if (!map.has(s)) map.set(s, /* @__PURE__ */ new Map());
-      const m = map.get(s);
-      m.has(e) ? m.get(e).sources.push(...src) : m.set(e, { n: e, title: "Epis\xF3dio " + e, sources: src });
-    }
-    const out = [...map].map(([s, m]) => ({ n: s, eps: [...m.values()].sort((a, b) => a.n - b.n) })).sort((a, b) => a.n - b.n);
-    return it.seasons = out;
-  }
-  async function detalhes(it) {
-    if (it._det) return it;
-    it._det = 1;
-    const f = (await fichas()).find((x) => x.id === it.id);
-    if (f) {
-      it.tmdb = f.tmdb;
-      it.genres = f.genres;
-      it.poster = it.poster || f.poster;
-    }
-    if (!it.tmdb) return it;
-    try {
-      const j = await get("".concat(TMDB, "/").concat(it.serie ? "tv" : "movie", "/").concat(it.tmdb, "?api_key=").concat(KEY2, "&language=pt-BR"), { text: false });
-      it.sinopse = j.overview || "";
-      it.nota = j.vote_average || 0;
-      it.ano = (j.release_date || j.first_air_date || "").slice(0, 4);
-      if (j.backdrop_path) it.fundo = IMG + "w1280" + j.backdrop_path;
-      if (j.poster_path && !it.poster) it.poster = IMG + "w342" + j.poster_path;
-      if (j.genres && j.genres.length) it.genres = j.genres.map((g) => g.name);
-    } catch (e) {
-    }
-    return it;
-  }
-  async function tmdbBusca(q) {
-    try {
-      const j = await get("".concat(TMDB, "/search/multi?api_key=").concat(KEY2, "&language=pt-BR&query=").concat(encodeURIComponent(q)), { text: false, timeout: 8e3 });
-      return (j.results || []).filter((r) => r.media_type === "movie" || r.media_type === "tv").map((r) => ({ tmdb: r.id, tv: r.media_type === "tv" }));
-    } catch (e) {
-      return [];
-    }
-  }
-  function recarregar() {
-    for (const k in mem) delete mem[k];
-  }
-  var PROV = [
-    { n: "Netflix", id: "8", c: "#e50914" },
-    { n: "Prime Video", id: "119|9", c: "#00a8e1" },
-    { n: "Disney+", id: "337", c: "#2b59ff" },
-    { n: "Max", id: "1899|384", c: "#8b5cf6" },
-    { n: "Paramount+", id: "531", c: "#1e7bff" },
-    { n: "Apple TV+", id: "350|2", c: "#9aa0a6" },
-    { n: "Globoplay", id: "307", c: "#ff5a1f" },
-    { n: "Crunchyroll", id: "283", c: "#f47521" }
-  ];
-  async function porTipo(chave, serie) {
-    const [ds, f] = await Promise.all([destaques(), fichas()]), by = new Map(f.map((x) => [x.id, x])), seen = /* @__PURE__ */ new Set(), out = [];
-    ds.filter((r) => norm(r.titulo).includes(chave)).forEach((r) => r.itens.forEach((it) => {
-      if (it.serie !== serie || seen.has(it.id)) return;
-      seen.add(it.id);
-      out.push(by.get(it.id) || it);
-    }));
-    f.forEach((x) => {
-      if (x.serie === serie && !seen.has(x.id) && x.genres.some((g) => norm(g).includes(chave))) {
-        seen.add(x.id);
-        out.push(x);
-      }
-    });
-    return out;
-  }
-  async function porProvedor(p, serie) {
-    const K2 = "prov_" + p.id + (serie ? "t" : "m"), c = cache.get(K2, null);
-    let ids;
-    if (c && Date.now() - c.t < 432e5) ids = c.ids;
-    else {
-      const ty = serie ? "tv" : "movie", get1 = async (pg) => {
-        try {
-          const j = await get("".concat(TMDB, "/discover/").concat(ty, "?api_key=").concat(KEY2, "&language=pt-BR&watch_region=BR&with_watch_providers=").concat(encodeURIComponent(p.id), "&with_watch_monetization_types=flatrate&sort_by=popularity.desc&page=").concat(pg), { text: false, timeout: 1e4 });
-          return (j.results || []).map((x) => x.id);
-        } catch (e) {
-          return [];
-        }
-      };
-      ids = (await Promise.all([1, 2, 3, 4, 5, 6].map(get1))).flat();
-      if (ids.length) cache.set(K2, { t: Date.now(), ids });
-    }
-    const pos = new Map(ids.map((id, i) => [id, i])), f = await fichas();
-    return f.filter((x) => x.serie === serie && x.tmdb && pos.has(x.tmdb)).sort((a, b) => pos.get(a.tmdb) - pos.get(b.tmdb));
-  }
-
   // src/search.js
   function score(q, qt, it) {
     const t = it.n;
@@ -1872,19 +1894,25 @@
       return catalogo(m, arg, true);
     },
     async detalhe(m, it) {
-      const meta = await detalhes(it);
       const pr = progress.get(it.id);
       const bg = h("div", { class: "bg", style: it.fundo ? "background-image:url('" + it.fundo + "')" : "" });
-      const tx = h(
-        "div",
-        { class: "tx" },
-        h("h1", null, it.title),
-        h("div", { class: "meta" }, [it.ano, it.serie ? "S\xE9rie" : "Filme", it.genres && it.genres.join(" \xB7 "), it.nota ? "\u2605 " + it.nota.toFixed(1) : ""].filter(Boolean).join("  \xB7  ")),
-        h("p", null, it.sinopse || "")
-      );
+      const metaTxt = () => [it.ano, it.serie ? "S\xE9rie" : "Filme", it.genres && it.genres.join(" \xB7 "), it.nota ? "\u2605 " + it.nota.toFixed(1) : ""].filter(Boolean).join("  \xB7  ");
+      const metaEl = h("div", { class: "meta" }, metaTxt()), sinEl = h("p", null, it.sinopse || "");
+      const tx2 = h("div", { class: "tx" }, h("h1", null, it.title), metaEl, sinEl);
       const btns = h("div", { style: "margin-bottom:28px" });
-      tx.append(btns);
-      m.append(h("div", { class: "det" }, bg, h("div", { class: "in" }, h("div", { class: "po", style: it.poster ? "background-image:url('" + it.poster + "')" : "" }), tx)));
+      tx2.append(btns);
+      m.append(h("div", { class: "det" }, bg, h("div", { class: "in" }, h("div", { class: "po", style: it.poster ? "background-image:url('" + it.poster + "')" : "" }), tx2)));
+      detalhes(it).then(() => {
+        if (!metaEl.isConnected) return;
+        metaEl.textContent = metaTxt();
+        sinEl.textContent = it.sinopse || "";
+        if (it.fundo) bg.style.backgroundImage = "url('" + it.fundo + "')";
+        const po = m.querySelector(".po");
+        if (po && it.poster && !po.style.backgroundImage) po.style.backgroundImage = "url('" + it.poster + "')";
+      }).catch(() => {
+      });
+      if (!it.serie) fontesFilme(it).catch(() => {
+      });
       if (!it.serie) {
         btns.append(h(
           "div",
@@ -1900,7 +1928,7 @@
           pr && pr.t > 30 && !pr.done ? "\u25B6 Continuar" : "\u25B6 Assistir"
         ));
       } else {
-        tx.append(h("div", { class: "vazio", id: "epl" }, "Carregando epis\xF3dios..."));
+        tx2.append(h("div", { class: "vazio", id: "epl" }, "Carregando epis\xF3dios..."));
         temporadas(it).then((ss) => {
           const box = $("#epl");
           if (!box) return;
