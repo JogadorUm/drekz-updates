@@ -779,7 +779,7 @@
   };
 
   // src/upd.js
-  var VER = "2.0.4";
+  var VER = "2.0.5";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1092,8 +1092,8 @@
     const ctl = h("div", { class: "ctl" });
     if (live) {
       ctl.append(
-        B("\u25B2 Canal", () => zap(-1)),
-        B("\u25BC Canal", () => zap(1)),
+        B("\u25B2 Canal", () => zap(1)),
+        B("\u25BC Canal", () => zap(-1)),
         B("\u2630 Canais", gaveta, { first: 1, keep: 1 }),
         B("\u2699 Fontes", fontes, { keep: 1 }),
         B(favs.has(S.ch.id) ? "\u2605 Favorito" : "\u2606 Favoritar", (e) => {
@@ -1379,15 +1379,36 @@
     setScope(() => $("#ui"));
     window.dispatchEvent(new Event("drekz-voltou"));
   }
+  var dig = "";
+  var digT = 0;
+  function digito(d) {
+    dig = (dig + d).slice(-4);
+    toast("Canal " + dig, 1600);
+    clearTimeout(digT);
+    digT = setTimeout(() => {
+      const n = +dig;
+      dig = "";
+      if (!S || S.kind !== "live") return;
+      const l = S.lista, c = l.find((x) => x.num === n);
+      c ? (prefs.set({ ultimoCanal: c.id }), sintoniza(c, 0, false), monta(), osd(true)) : toast("N\xE3o existe o canal " + n, 2e3);
+    }, 1600);
+  }
   function playerKey(e) {
     if (!S) return false;
+    if (S.kind === "live" && !$("#gv").classList.contains("on2") && document.getElementById("modal").style.display !== "flex") {
+      const k = e.keyCode, d = k >= 48 && k <= 57 ? k - 48 : k >= 96 && k <= 105 ? k - 96 : -1;
+      if (d >= 0) {
+        digito(d);
+        return true;
+      }
+    }
     const pe = $("#pl"), vis = pe.classList.contains("osd"), g = $("#gv").classList.contains("on2");
     if (is(e, "CHUP") && S.kind === "live") {
-      zap(-1);
+      zap(1);
       return true;
     }
     if (is(e, "CHDOWN") && S.kind === "live") {
-      zap(1);
+      zap(-1);
       return true;
     }
     if (is(e, "PLAY") || is(e, "PAUSE")) {
@@ -1412,7 +1433,7 @@
       }
       if (is(e, "UP") || is(e, "DOWN")) {
         if (S.kind === "live") {
-          zap(is(e, "UP") ? -1 : 1);
+          zap(is(e, "UP") ? 1 : -1);
           return true;
         }
         osd(true);
@@ -2042,6 +2063,11 @@
       h("span", { html: '<svg viewBox="0 0 24 24"><path d="' + SVG[i] + '"/></svg>', style: "display:flex" }),
       t
     )));
+    try {
+      const t = window.tizen && window.tizen.tvinputdevice;
+      t && t.registerKeyBatch(["MediaPlay", "MediaPause", "MediaPlayPause", "MediaStop", "MediaFastForward", "MediaRewind", "ChannelUp", "ChannelDown", "Info", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+    } catch (e) {
+    }
     initWatch();
     initKeys((e) => assistindo() ? playerKey(e) : false);
     onBack(() => {
