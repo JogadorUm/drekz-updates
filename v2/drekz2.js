@@ -1130,7 +1130,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.1";
+  var VER = "2.1.2";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1147,6 +1147,7 @@
       manual && toast("Atualiza\xE7\xE3o autom\xE1tica s\xF3 no app instalado.");
       return;
     }
+    setTimeout(() => verificarApk(manual), 1500);
     try {
       const j = JSON.parse(await get(d.base + "v2/versao.json?t=" + Date.now(), { cache: "no-store", timeout: 1e4 }));
       if (j.build > d.build) {
@@ -1229,6 +1230,76 @@
     setTimeout(() => verificar(false), 8e3);
     setInterval(() => verificar(false), 18e5);
   }
+  var EXO = () => window.DrekzExo && window.DrekzExo.versaoCode && window.DrekzExo.baixarApk ? window.DrekzExo : null;
+  var apkNovo = null;
+  var apkEst = "idle";
+  var apkMostrando = false;
+  var snoozeApk = () => {
+    try {
+      return +localStorage.getItem("drekz2_snooze_apk") || 0;
+    } catch (e) {
+      return 0;
+    }
+  };
+  async function verificarApk(manual) {
+    const x = EXO(), d = D();
+    if (!x || !d || apkEst === "baixando") return;
+    try {
+      const j = JSON.parse(await get(d.base + "apk/box.json?t=" + Date.now(), { cache: "no-store", timeout: 1e4 }));
+      if (j.codigo > x.versaoCode()) {
+        apkNovo = j;
+        if (apkEst === "idle") apkEst = "novo";
+        if (!mostrando && (manual || Date.now() > snoozeApk() && !assistindo())) perguntaApk();
+      } else {
+        apkNovo = null;
+        apkEst = "idle";
+      }
+    } catch (e) {
+    }
+  }
+  function perguntaApk() {
+    if (!apkNovo || apkMostrando) return;
+    apkMostrando = true;
+    const pronto = apkEst === "pronto";
+    modal(
+      "Nova vers\xE3o do app " + (apkNovo.versao || ""),
+      [
+        { t: pronto ? "Instalar agora" : "Baixar e instalar", s: (apkNovo.notas || "Melhorias e corre\xE7\xF5es") + " \xB7 o Android vai pedir para confirmar", fn: () => {
+          const x = EXO();
+          if (!x) return;
+          if (pronto) {
+            x.instalarApk();
+            return;
+          }
+          apkEst = "baixando";
+          toast("Baixando atualiza\xE7\xE3o...", 3e4);
+          x.baixarApk(new URL(apkNovo.arquivo, D().base).href);
+        } },
+        { t: "Depois", s: "Pergunto de novo em 30 minutos", fn: () => {
+          try {
+            localStorage.setItem("drekz2_snooze_apk", String(Date.now() + 18e5));
+          } catch (e) {
+          }
+        } }
+      ],
+      { onClose: () => {
+        apkMostrando = false;
+      } }
+    );
+  }
+  window.__apkEv = function(ev, d) {
+    if (ev === "prog") toast("Baixando atualiza\xE7\xE3o... " + d + "%", 4e3);
+    else if (ev === "ok") {
+      apkEst = "pronto";
+      toast("Baixada. Confirme a instala\xE7\xE3o no Android.", 6e3);
+    } else if (ev === "perm") {
+      apkEst = "pronto";
+      toast('Ative "Permitir desta fonte", volte ao app e escolha Instalar agora.', 9e3);
+    } else if (ev === "erro") {
+      apkEst = apkNovo ? "novo" : "idle";
+      toast("Falha ao baixar: " + d, 6e3);
+    }
+  };
 
   // src/track.js
   var K = "drekz2_trk";
