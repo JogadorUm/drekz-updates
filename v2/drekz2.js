@@ -84,13 +84,13 @@
   };
   var KEY = {
     ENTER: [13],
-    BACK: [10009, 27, 8, 4, 461, 166],
+    BACK: [10009, 27, 8, 4, 461],
     UP: [38],
     DOWN: [40],
     LEFT: [37],
     RIGHT: [39],
-    CHUP: [427, 33],
-    CHDOWN: [428, 34],
+    CHUP: [427, 33, 166],
+    CHDOWN: [428, 34, 167],
     PLAY: [415, 10252, 179],
     PAUSE: [19],
     STOP: [413],
@@ -228,9 +228,26 @@
   }, set(o) {
     wr("prefs", __spreadValues(__spreadValues({}, rd("prefs", {})), o));
   } };
+  var nativo = () => window.DrekzExo && window.DrekzExo.setProg ? window.DrekzExo : null;
   var progress = {
     all() {
       return rd("prog", {});
+    },
+    mergeIn(o) {
+      const a = rd("prog", {});
+      let n = 0;
+      for (const k in o || {}) {
+        const x = o[k];
+        if (x && typeof x === "object" && x.title && (!a[k] || (x.updatedAt || 0) > (a[k].updatedAt || 0))) {
+          a[k] = x;
+          n++;
+        }
+      }
+      if (n) {
+        wr("prog", a);
+        espelha(a);
+      }
+      return n;
     },
     get(id) {
       return rd("prog", {})[id];
@@ -243,6 +260,7 @@
         k.sort((x, y) => a[x].updatedAt - a[y].updatedAt).slice(0, k.length - 200).forEach((i) => delete a[i]);
       }
       wr("prog", a);
+      espelha(a);
     },
     del(id) {
       const a = rd("prog", {});
@@ -254,6 +272,21 @@
       return Object.keys(a).map((id) => __spreadValues({ id }, a[id])).filter((x) => x.title && !x.done).sort((x, y) => y.updatedAt - x.updatedAt).slice(0, 20);
     }
   };
+  function espelha(a) {
+    const N = nativo();
+    try {
+      N && N.setProg(JSON.stringify(a));
+    } catch (e) {
+    }
+  }
+  function sincNativo() {
+    const N = nativo();
+    if (!N || !N.getProg) return;
+    try {
+      progress.mergeIn(JSON.parse(N.getProg() || "{}"));
+    } catch (e) {
+    }
+  }
   var favs = {
     all() {
       return rd("favs", []);
@@ -1035,21 +1068,21 @@
     }
     async open(s) {
       const P3 = plat.ponte, privada = /^https?:\/\/(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(s.url), usaPonte = !!P3 && !s.audio && !s._p && /^https?:/i.test(s.url) && !privada, sempre = usaPonte && prefs.get().ponteSempre;
-      const msg = this.ev.msg || (() => {
+      const msg2 = this.ev.msg || (() => {
       });
       if (sempre) try {
         await this.try1(this.ponteUrl(s));
         return;
       } catch (e) {
         if (e.message === CANCEL) throw e;
-        msg("Pela ponte falhou, tentando direto...");
+        msg2("Pela ponte falhou, tentando direto...");
       }
       try {
         await this.try1(s);
       } catch (e) {
         if (e.message === CANCEL) throw e;
         if (!usaPonte || sempre) throw e;
-        msg("Tentando pela ponte do celular...");
+        msg2("Tentando pela ponte do celular...");
         await this.try1(this.ponteUrl(s));
       }
     }
@@ -1097,7 +1130,7 @@
   };
 
   // src/upd.js
-  var VER = "2.0.7";
+  var VER = "2.1.0";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1376,6 +1409,20 @@
     return pl;
   }
   var assistindo = () => !!S;
+  var estadoWatch = () => S ? { kind: S.kind, ch: S.ch || null } : null;
+  function irParaCanal(c, L) {
+    if (S && S.kind === "live") {
+      const ix = S.lista.findIndex((x) => x.id === c.id);
+      if (ix < 0) S.lista = L;
+      prefs.set({ ultimoCanal: c.id });
+      sintoniza(c, 0, false);
+      monta();
+      osd(true);
+      return;
+    }
+    if (S) sair();
+    abrirLive(L, L.findIndex((x) => x.id === c.id));
+  }
   function osd(on, fixo) {
     const pe = $("#pl");
     pe.classList.toggle("osd", on);
@@ -1649,7 +1696,7 @@
   function grava() {
     if (!S || S.kind !== "vod" || !S.d) return;
     const it = S.it, done = S.d - S.t < 120;
-    progress.set(it.id, { t: S.t, d: S.d, title: it.title, poster: it.poster, serie: it.serie, s: S.s, e: S.e, done: done && !it.serie ? true : false, letra: it.letra, tmdb: it.tmdb });
+    progress.set(it.id, { t: S.t, d: S.d, title: it.title, poster: it.poster, serie: it.serie, s: S.s, e: S.e, season: S.s, episode: S.e, done: done && !it.serie ? true : false, letra: it.letra, tmdb: it.tmdb });
   }
   function proxEp(d) {
     if (!S || !S.seasons) return null;
@@ -1666,7 +1713,7 @@
     }
     grava();
     const it = S.it, seasons = S.seasons;
-    progress.set(it.id, { t: 0, d: 0, title: it.title, poster: it.poster, serie: true, s: n.s, e: n.ep.n, letra: it.letra, tmdb: it.tmdb });
+    progress.set(it.id, { t: 0, d: 0, title: it.title, poster: it.poster, serie: true, s: n.s, e: n.ep.n, season: n.s, episode: n.ep.n, letra: it.letra, tmdb: it.tmdb });
     const off = S.off;
     pl.stop();
     S = null;
@@ -1803,13 +1850,13 @@
     if (ok < qt.length) return 0;
     return 40 + 30 * s / qt.length;
   }
-  async function buscar(texto) {
-    const q = norm(texto);
+  async function buscar(texto2) {
+    const q = norm(texto2);
     if (q.length < 2) return [];
     const lista = await fichas(), qt = q.split(" ");
     let r = lista.map((it) => ({ it, s: score(q, qt, it) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.it);
     if (r.length < 6) {
-      const ids = await tmdbBusca(texto);
+      const ids = await tmdbBusca(texto2);
       const seen = new Set(r.map((x) => x.id));
       for (const x of ids) {
         const f = lista.find((y) => y.tmdb === x.tmdb && y.serie === x.tv);
@@ -1820,6 +1867,523 @@
       }
     }
     return r.slice(0, 120);
+  }
+
+  // src/connect.js
+  var sha256 = function(s) {
+    const u = new TextEncoder().encode(s), n = u.length, l = n + 9 + 63 >> 6 << 6, b = new Uint8Array(l);
+    b.set(u), b[n] = 128;
+    const dv = new DataView(b.buffer);
+    dv.setUint32(l - 4, n * 8 >>> 0), dv.setUint32(l - 8, Math.floor(n * 8 / 4294967296));
+    const K2 = [], H = [];
+    let p = 2, c = 0;
+    const fr = (x) => (x - Math.floor(x)) * 4294967296 | 0;
+    for (; c < 64; p++) {
+      let pr = true;
+      for (let d = 2; d * d <= p; d++) if (p % d == 0) {
+        pr = false;
+        break;
+      }
+      pr && (c < 8 && (H[c] = fr(Math.sqrt(p))), K2[c] = fr(Math.cbrt(p)), c++);
+    }
+    const W = new Int32Array(64), R = (x, k) => x >>> k | x << 32 - k;
+    for (let o = 0; o < l; o += 64) {
+      for (let i = 0; i < 16; i++) W[i] = dv.getInt32(o + i * 4);
+      for (let i = 16; i < 64; i++) {
+        const a2 = W[i - 15], d = W[i - 2];
+        W[i] = W[i - 16] + (R(a2, 7) ^ R(a2, 18) ^ a2 >>> 3) + W[i - 7] + (R(d, 17) ^ R(d, 19) ^ d >>> 10) | 0;
+      }
+      let [a, b2, c2, d2, e, f, g, h2] = H;
+      for (let i = 0; i < 64; i++) {
+        const t1 = h2 + (R(e, 6) ^ R(e, 11) ^ R(e, 25)) + (e & f ^ ~e & g) + K2[i] + W[i] | 0, t2 = (R(a, 2) ^ R(a, 13) ^ R(a, 22)) + (a & b2 ^ a & c2 ^ b2 & c2) | 0;
+        h2 = g, g = f, f = e, e = d2 + t1 | 0, d2 = c2, c2 = b2, b2 = a, a = t1 + t2 | 0;
+      }
+      H[0] = H[0] + a | 0, H[1] = H[1] + b2 | 0, H[2] = H[2] + c2 | 0, H[3] = H[3] + d2 | 0, H[4] = H[4] + e | 0, H[5] = H[5] + f | 0, H[6] = H[6] + g | 0, H[7] = H[7] + h2 | 0;
+    }
+    return H.map((x) => (x >>> 0).toString(16).padStart(8, "0")).join("");
+  };
+  var PORTA = 8765;
+  var KEYS = { up: 38, down: 40, left: 37, right: 39, ok: 13, back: 27, red: 403, green: 404, yellow: 405, blue: 406, play: 415, pause: 19, stop: 413, ff: 417, rw: 412, info: 457 };
+  var S2 = { ws: null, par: null, ligado: false, cod: "", achados: [], varrendo: false, falhas: 0, pr: "", nomeTela: null, iv: 0, rv: null, ui: null };
+  var cfg = () => {
+    try {
+      return JSON.parse(localStorage.getItem("drekz_connect") || "{}");
+    } catch (e) {
+      return {};
+    }
+  };
+  var salva = (c) => {
+    try {
+      localStorage.setItem("drekz_connect", JSON.stringify(c));
+    } catch (e) {
+    }
+  };
+  var meuId = () => {
+    const c = cfg();
+    if (!c.id) {
+      c.id = "tv" + Math.random().toString(36).slice(2, 10);
+      salva(c);
+    }
+    return c.id;
+  };
+  var nomeTv = () => cfg().nome || "TV Drekz";
+  var codigoTv = () => {
+    const c = cfg();
+    if (!/^\d{8}$/.test(c.rv || "")) {
+      c.rv = String(Math.floor(1e7 + Math.random() * 9e7));
+      salva(c);
+    }
+    return c.rv;
+  };
+  var ocupado = () => !!estadoWatch();
+  var estado = () => S2.ligado && S2.par ? "Conectado: " + (S2.par.nome || S2.par.ip) : Object.keys(cfg().par || {}).length ? "Pareado (abra o app no celular)" : "Nenhum celular";
+  var msg = (t) => {
+    S2.msgT = t;
+    S2.ui && S2.ui.msg && S2.ui.msg(t);
+  };
+  var redesenha = () => S2.ui && S2.ui.desenha && S2.ui.desenha();
+  function meuIp() {
+    try {
+      const n = window.webapis && window.webapis.network;
+      if (n && n.getIp) {
+        const ip = n.getIp();
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(ip) && ip !== "0.0.0.0") return ip;
+      }
+    } catch (e) {
+    }
+    try {
+      if (window.DrekzNative && window.DrekzNative.getIp) {
+        const ip = window.DrekzNative.getIp();
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return ip;
+      }
+    } catch (e) {
+    }
+    return "";
+  }
+  function ipRtc() {
+    return new Promise((res) => {
+      let pc, fin = false;
+      const ok = (x) => {
+        if (fin) return;
+        fin = true;
+        try {
+          pc && pc.close();
+        } catch (e) {
+        }
+        res(x);
+      };
+      try {
+        pc = new RTCPeerConnection({ iceServers: [] });
+        pc.createDataChannel("");
+        pc.onicecandidate = (e) => {
+          if (!e.candidate) {
+            ok("");
+            return;
+          }
+          const m = /(\d+\.\d+\.\d+\.\d+)/.exec(e.candidate.candidate);
+          m && !/^(0\.|127\.|169\.254)/.test(m[1]) && ok(m[1]);
+        };
+        pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => ok(""));
+        setTimeout(() => ok(""), 1500);
+      } catch (e) {
+        ok("");
+      }
+    });
+  }
+  function sonda(ip, ms) {
+    ms = ms || 1800;
+    return new Promise((res) => {
+      let w, ok = false;
+      const fim = (r) => {
+        if (ok) return;
+        ok = true;
+        clearTimeout(tm);
+        try {
+          w && w.close();
+        } catch (e) {
+        }
+        res(r);
+      }, tm = setTimeout(() => fim(null), ms);
+      try {
+        w = new WebSocket("ws://" + ip + ":" + PORTA + "/");
+      } catch (e) {
+        fim(null);
+        return;
+      }
+      w.onopen = () => {
+        try {
+          w.send(JSON.stringify({ t: "hello", id: meuId(), nome: nomeTv(), kind: "tv", sonda: 1 }));
+        } catch (e) {
+          fim(null);
+        }
+      };
+      w.onmessage = (m) => {
+        try {
+          const d = JSON.parse(m.data);
+          d.t === "hello" && fim({ ip, id: d.id, nome: d.nome });
+        } catch (e) {
+        }
+      };
+      w.onerror = () => fim(null);
+      w.onclose = () => fim(null);
+    });
+  }
+  async function bases2() {
+    const out = [], add = (ip) => {
+      const m = /^(\d+\.\d+\.\d+)\.\d+$/.exec(ip || "");
+      m && !out.some((o) => o.b === m[1]) && out.push({ b: m[1], me: ip });
+    };
+    add(meuIp());
+    add(cfg().ult);
+    add(await ipRtc());
+    return out;
+  }
+  async function varrer(silencio) {
+    if (S2.varrendo) return;
+    S2.varrendo = true;
+    S2.achados = [];
+    redesenha();
+    const known = await bases2(), eu = meuIp(), ult = cfg().ult, comuns = silencio ? [] : ["192.168.0", "192.168.1", "192.168.15", "192.168.100", "192.168.2", "10.0.0", "192.168.18", "192.168.3"].filter((b) => !known.some((o) => o.b === b)), grupos = [];
+    known.length && grupos.push({ bs: known.map((o) => o.b), ms: 1800 });
+    comuns.length && grupos.push({ bs: comuns, ms: 900, extra: true });
+    for (const g of grupos) {
+      if (!S2.varrendo) break;
+      g.extra && !silencio && msg("Procurando em outras redes comuns...");
+      let hs = [];
+      g.bs.forEach((b) => {
+        for (let i = 1; i < 255; i++) {
+          const x = b + "." + i;
+          x !== eu && hs.push(x);
+        }
+      });
+      ult && (hs = hs.filter((x) => x !== ult), hs.unshift(ult));
+      let k = 0, f = 0;
+      const w = async () => {
+        for (; k < hs.length && S2.varrendo; ) {
+          const x = hs[k++], r = await sonda(x, g.ms);
+          f++;
+          r && !S2.achados.some((a) => a.id === r.id) && (S2.achados.push(r), redesenha());
+          silencio || f % 8 || msg("Procurando celulares... " + f + "/" + hs.length);
+        }
+      };
+      await Promise.all(Array.from({ length: silencio ? 12 : 48 }, w));
+      if (S2.achados.length) break;
+    }
+    S2.varrendo = false;
+    silencio || msg(S2.achados.length ? "Escolha o celular:" : "Nenhum celular encontrado. Confira se o celular e a TV est\xE3o no mesmo Wi-Fi e se o app Drekz est\xE1 aberto na tela Connect (ou digite o IP).");
+    redesenha();
+    return S2.achados;
+  }
+  function conectar(a) {
+    desconectar(true);
+    const c = cfg(), tok = (c.par || {})[a.id] && c.par[a.id].tok || "";
+    msg("Conectando a " + (a.nome || a.ip) + "...");
+    let w;
+    try {
+      w = new WebSocket("ws://" + a.ip + ":" + PORTA + "/");
+    } catch (e) {
+      msg("Falha ao conectar.");
+      return;
+    }
+    S2.ws = w;
+    S2.par = a;
+    S2.ligado = false;
+    w.onopen = () => w.send(JSON.stringify({ t: "hello", id: meuId(), nome: nomeTv(), kind: "tv", tok }));
+    w.onmessage = (m) => recebe(m, a, w);
+    w.onclose = () => {
+      if (S2.ws === w) {
+        S2.ws = null;
+        S2.ligado = false;
+        S2.cod = "";
+        clearInterval(S2.iv);
+        msg("Celular desconectado.");
+        redesenha();
+      }
+    };
+  }
+  function desconectar(silencio) {
+    window.__ponte = null;
+    clearInterval(S2.iv);
+    const w = S2.ws;
+    S2.ws = null;
+    S2.ligado = false;
+    S2.cod = "";
+    try {
+      w && w.close();
+    } catch (e) {
+    }
+    silencio || (msg("Desconectado."), redesenha());
+  }
+  function esquecer(id) {
+    const c = cfg();
+    c.par && delete c.par[id];
+    salva(c);
+    S2.par && S2.par.id === id && desconectar(true);
+    redesenha();
+  }
+  var env = (o) => {
+    try {
+      S2.ws && S2.ws.readyState === 1 && S2.ws.send(JSON.stringify(o));
+    } catch (e) {
+    }
+  };
+  function recebe(m, a, w) {
+    let d;
+    try {
+      d = JSON.parse(m.data);
+    } catch (e) {
+      return;
+    }
+    if (d.t === "hello" && d.id && a.id !== d.id) a.id = d.id;
+    if (d.t === "hello") {
+      if (d.auth) ligou(a);
+      else {
+        S2.cod = String(Math.floor(1e3 + Math.random() * 9e3));
+        msg("C\xF3digo " + S2.cod + "  \u2014  confirme no celular");
+        w.send(JSON.stringify({ t: "pair", code: S2.cod }));
+        redesenha();
+      }
+    } else if (d.t === "paired") {
+      const c = cfg();
+      c.par = c.par || {};
+      c.par[a.id] = { nome: a.nome, tok: d.tok, ip: a.ip };
+      c.ult = a.ip;
+      salva(c);
+      S2.cod = "";
+      ligou(a);
+    } else if (d.t === "denied") {
+      S2.cod = "";
+      msg("O celular recusou a conex\xE3o.");
+      desconectar(true);
+    } else if (d.t === "key") tecla(d.k);
+    else if (d.t === "chan") canal(d.id);
+    else if (d.t === "text") texto(d.v);
+    else if (d.t === "open") abrir(d.id);
+    else if (d.t === "getstate") enviarTudo();
+    else if (d.t === "prog") {
+      d.ok && mescla(d.d);
+    } else if (d.t === "ponte") {
+      window.__ponte = { ip: a.ip, porta: d.porta || 8766 };
+      prefs.set({ ponteSempre: !!d.sempre });
+    }
+  }
+  function ligou(a) {
+    S2.ligado = true;
+    S2.falhas = 0;
+    const c = cfg();
+    c.ult = a.ip;
+    salva(c);
+    msg("Conectado a " + (a.nome || a.ip) + ". Use o celular como controle.");
+    toast("Celular conectado: " + (a.nome || a.ip), 3e3);
+    enviarTudo();
+    clearInterval(S2.iv);
+    S2.iv = setInterval(enviarEstado, 3e3);
+    redesenha();
+  }
+  function tecla(k) {
+    if (k === "chup" || k === "chdn") {
+      fake(k === "chup" ? 427 : 428);
+      return;
+    }
+    let n = KEYS[k];
+    if (n === void 0 && /^[0-9]$/.test(k)) n = 48 + +k;
+    if (n === void 0) return;
+    fake(n);
+  }
+  function fake(n) {
+    const ev = new KeyboardEvent("keydown", { bubbles: true, cancelable: true });
+    try {
+      Object.defineProperty(ev, "keyCode", { get: () => n });
+      Object.defineProperty(ev, "which", { get: () => n });
+    } catch (e) {
+    }
+    (document.activeElement || document.body).dispatchEvent(ev);
+  }
+  async function canal(id) {
+    const L = await canais(), c = L.find((x) => String(x.id) === String(id));
+    if (c) {
+      irParaCanal(c, L);
+      setTimeout(enviarEstado, 600);
+    }
+  }
+  function texto(v) {
+    const go2 = window.__drekz && window.__drekz.go;
+    const poe = () => {
+      const el = document.querySelector(".sb input");
+      if (el) {
+        el.value = v;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    };
+    if (document.querySelector(".sb input")) poe();
+    else if (!ocupado() && go2) {
+      go2("busca", null);
+      setTimeout(poe, 400);
+    }
+  }
+  async function abrir(id) {
+    const ds = await destaques(), f = await fichas();
+    let it = null;
+    for (const r of ds) for (const x of r.itens) if (x.id === id) it = x;
+    it = it || f.find((x) => x.id === id);
+    if (it && !ocupado() && window.__drekz) window.__drekz.go("detalhe", it);
+  }
+  var raw = () => JSON.stringify(progress.all());
+  function enviarProg(f) {
+    const r = raw();
+    if (!f && r === S2.pr) return;
+    S2.pr = r;
+    env({ t: "prog", d: progress.all() });
+  }
+  function mescla(o) {
+    const n = progress.mergeIn(o);
+    if (n) {
+      S2.pr = raw();
+      toast("Epis\xF3dios sincronizados com o celular (" + n + ")", 3500);
+    }
+  }
+  function enviarTudo() {
+    S2.cn = -1;
+    S2.dn = -1;
+    enviarProg(true);
+    enviarEstado();
+  }
+  async function enviarEstado() {
+    enviarProg();
+    const L = await canais();
+    if (L.length !== S2.cn) {
+      S2.cn = L.length;
+      env({ t: "canais", lista: L.map((x) => ({ id: x.id, n: x.name, num: x.num })) });
+    }
+    try {
+      const F = await destaques(), n = F.reduce((a, f) => a + f.itens.length, 0);
+      if (n !== S2.dn) {
+        S2.dn = n;
+        env({ t: "destaques", filas: F.slice(0, 8).map((f) => ({ t: f.titulo, i: f.itens.slice(0, 24).map((x) => ({ id: x.id, n: x.title, p: x.poster, s: x.serie ? 1 : 0, y: x.year })) })) });
+      }
+    } catch (e) {
+    }
+    const w = estadoWatch(), tela = w ? w.kind === "live" ? "live" : "player" : { inicio: "home", tv: "live", filmes: "ondemand", series: "ondemand", busca: "search", ajustes: "settings", conectar: "connect", detalhe: "ficha" }[window.__drekz && window.__drekz.tela && window.__drekz.tela() || "inicio"] || "home";
+    env({ t: "state", tela, canal: w && w.kind === "live" ? { id: w.ch.id, n: w.ch.name } : null });
+  }
+  function auto() {
+    const c = cfg();
+    if (S2.autoOn || !Object.keys(c.par || {}).length) return;
+    S2.autoOn = true;
+    const tenta = async () => {
+      if (!S2.ligado && !S2.varrendo && !ocupado()) {
+        const par = cfg().par || {}, u = cfg().ult;
+        let r = u ? await sonda(u, 1500) : null;
+        if (r && !par[r.id]) r = null;
+        if (!r && ++S2.falhas >= 2 && Date.now() - (S2._ls || 0) > 3e5) {
+          S2._ls = Date.now();
+          const l = await varrer(true);
+          r = (l || []).find((a) => par[a.id]) || null;
+          S2.falhas = 0;
+        }
+        r && conectar(r);
+      }
+      setTimeout(tenta, 15e3);
+    };
+    setTimeout(tenta, 4e3);
+  }
+  var topico = (c) => "drekz-" + sha256(c + "drekz-connect-v1").slice(0, 32);
+  var rvBase = () => {
+    let b = "https://ntfy.sh/";
+    try {
+      b = localStorage.getItem("drekz_rv_base") || b;
+    } catch (e) {
+    }
+    return b.replace(/\/?$/, "/");
+  };
+  function rvIniciar() {
+    if (S2.rv || typeof EventSource === "undefined") return;
+    const t = topico(codigoTv()), vistos = S2.rvv || (S2.rvv = /* @__PURE__ */ new Set());
+    const abre2 = () => {
+      let es;
+      try {
+        es = new EventSource(rvBase() + t + "/sse?since=15s");
+      } catch (e) {
+        setTimeout(abre2, 6e4);
+        return;
+      }
+      S2.rv = es;
+      es.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data);
+          if (m.event !== "message" || vistos.has(m.id)) return;
+          vistos.add(m.id);
+          rvMsg(JSON.parse(m.message));
+        } catch (e) {
+        }
+      };
+      es.onerror = () => {
+        try {
+          es.close();
+        } catch (e) {
+        }
+        S2.rv = null;
+        setTimeout(() => {
+          S2.rv || abre2();
+        }, 15e3);
+      };
+    };
+    abre2();
+  }
+  function rvMsg(d) {
+    if (!d || d.t !== "ola" || !/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(String(d.ip)) || Math.abs(Date.now() - (d.ts || 0)) > 12e4 || S2.ligado) return;
+    toast("O celular " + (d.nome || "") + " chamou esta TV. Conectando...", 3e3);
+    conectar({ ip: d.ip, id: d.id || d.ip, nome: d.nome || "Celular" });
+  }
+  function iniciarConnect() {
+    if (/[?&]fill=1/.test(location.search)) return;
+    auto();
+    rvIniciar();
+  }
+  function telaConectar(m) {
+    const cd = codigoTv(), par = () => cfg().par || {};
+    const st = h("div", { class: "vazio", style: "padding:6px 8px 14px" }, S2.msgT || estado()), ls = h("div"), pr = h("div");
+    const ip = h("input", { class: "f", placeholder: "IP do celular (ex.: 192.168.1.23)", style: "width:520px;font-size:26px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin:10px 0" });
+    const btn = (t, fn, x) => h("div", { class: "btn f" + (x ? " pri" : ""), onclick: fn }, t);
+    const desenha = () => {
+      ls.innerHTML = "";
+      pr.innerHTML = "";
+      if (S2.ligado && S2.par) ls.append(btn("Desconectar de " + (S2.par.nome || S2.par.ip), () => desconectar()));
+      S2.achados.forEach((a) => {
+        (!S2.ligado || !S2.par || S2.par.id !== a.id) && ls.append(btn((a.nome || "Celular") + "  \xB7  " + a.ip + (par()[a.id] ? "  \xB7  pareado" : ""), () => conectar(a), 1));
+      });
+      Object.keys(par()).forEach((id) => pr.append(btn("Esquecer " + (par()[id].nome || id), () => esquecer(id))));
+    };
+    S2.ui = { msg: (t) => {
+      if (st.isConnected) st.textContent = t;
+    }, desenha: () => {
+      if (ls.isConnected) desenha();
+    } };
+    m.append(
+      h("h1", null, "Conectar celular"),
+      h("div", { class: "vazio", style: "padding:0 8px 10px" }, "Abra o app Drekz Connect no celular (mesmo Wi-Fi) e escolha a TV, ou use o c\xF3digo abaixo."),
+      h("div", { class: "row", style: "cursor:default" }, h("div", null, "C\xF3digo desta TV", h("small", null, "No celular: aba TVs, digite o c\xF3digo e toque em Chamar TV")), h("b", { style: "font-size:34px;letter-spacing:4px" }, cd.slice(0, 4) + " " + cd.slice(4))),
+      st,
+      ls,
+      btn("Procurar de novo", () => {
+        msg("Procurando celulares...");
+        varrer();
+      }, 1),
+      ip,
+      btn("Conectar pelo IP", async () => {
+        const v = ip.value.trim();
+        if (!/^\d+\.\d+\.\d+\.\d+$/.test(v)) return msg("Digite o IP assim: 192.168.1.23");
+        const r = await sonda(v, 2500);
+        r ? conectar(r) : msg("N\xE3o achei o app nesse IP. Ele est\xE1 aberto na tela Connect?");
+      }),
+      pr
+    );
+    desenha();
+    focusFirst(m);
+    if (!S2.ligado) {
+      msg("Procurando celulares...");
+      varrer();
+    }
   }
 
   // src/screens.js
@@ -1842,6 +2406,7 @@
     go(p.nome, p.arg, { push: false });
     return true;
   }
+  var telaAtual = () => cur && cur.nome;
   var reabrir = () => cur && go(cur.nome, cur.arg, { push: false });
   var aguarda = (m) => m.append(h("div", { class: "vazio" }, "Carregando..."));
   function rail(titulo, itens, fn, pctFn) {
@@ -1972,6 +2537,9 @@
       } }, favs.has(it.id) ? "\u2605 Na minha lista" : "\u2606 Minha lista"));
       focusFirst(m);
     },
+    conectar(m) {
+      telaConectar(m);
+    },
     busca(m, arg) {
       const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("");
       const inp = h("input", { class: "f", placeholder: "Digite o nome (sem acento tudo bem)", autocomplete: "off", "data-first": 1 });
@@ -2035,6 +2603,7 @@
           recarregar && recarregar();
           toast("Recarregando...", 1500);
         }),
+        lin("Conectar celular", "Usar o celular como controle, trocar canal pelo app e sincronizar epis\xF3dios", estado(), () => go("conectar")),
         lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia s\xF3 dados t\xE9cnicos para eu corrigir problemas. Sem nome, IP ou o que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
           trk.set(!trk.ligado());
           if (trk.ligado()) envia();
@@ -2121,11 +2690,21 @@
   }
 
   // src/style.css
-  var style_default = ':root{--bg:#0b0d12;--bg2:#141821;--card:#1b2030;--tx:#eef1f6;--mu:#9aa3b5;--ac:#7c5cff;--ac2:#2ee6a6;--rd:#ff5d6c}\n*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}\nhtml,body{width:100%;height:100%;overflow:hidden;background:#000;color:var(--tx);font-family:"Segoe UI",Roboto,Arial,sans-serif}\n#app{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:var(--bg)}\nhtml.exo #app,html.exo body{background:transparent}\n#vl{position:absolute;inset:0;background:#000;display:none}#vl video{width:100%;height:100%;object-fit:contain;background:#000}\nhtml.assistindo #vl{display:block}html.assistindo #ui{display:none}html.exo.assistindo #vl{background:transparent}html.exo.assistindo #vl video{visibility:hidden}\n#ui{position:absolute;inset:0;display:flex}\n#rail{width:110px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;padding:36px 0;gap:10px;flex:none}\n#rail .logo{font-weight:800;font-size:22px;color:var(--ac);margin-bottom:24px;letter-spacing:1px}\n.nb{width:86px;height:86px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mu);font-size:15px;cursor:pointer;border:3px solid transparent}\n.nb svg{width:34px;height:34px;fill:currentColor}.nb.sel{color:var(--tx);background:#222a3e}\n#main{flex:1;min-width:0;height:100%;overflow-y:auto;overflow-x:hidden;padding:40px 56px 80px;scrollbar-width:none}\n#main::-webkit-scrollbar{display:none}\nh1{font-size:44px;font-weight:700;margin-bottom:26px}h2{font-size:30px;font-weight:600;margin:30px 0 16px}\n.f{outline:none;border:3px solid transparent;transition:transform .12s,border-color .12s,background .12s}\n.f.on{border-color:var(--ac2);transform:scale(1.05)}\n.rail{display:flex;gap:22px;overflow-x:auto;padding:10px 8px 14px;margin:0 -8px;scrollbar-width:none}.rail::-webkit-scrollbar{display:none}\n.card{flex:none;width:210px;cursor:pointer;border-radius:14px;background:var(--card);overflow:hidden}\n.card .pi{width:100%;height:315px;background:#222 center/cover no-repeat}\n.card .ti{font-size:17px;padding:10px 10px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.card .bar{height:6px;background:#333}.card .bar i{display:block;height:100%;background:var(--ac2)}\n.grid{display:grid;grid-template-columns:repeat(auto-fill,210px);gap:26px 22px;padding:8px}\n.chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}\n.chip{padding:10px 22px;border-radius:30px;background:var(--card);font-size:19px;cursor:pointer;color:var(--mu)}\n.chip.sel{background:var(--ac);color:#fff}\n.chs{display:grid;grid-template-columns:repeat(auto-fill,300px);gap:20px;padding:8px}\n.ch{height:112px;background:var(--card);border-radius:16px;display:flex;align-items:center;gap:16px;padding:0 18px;cursor:pointer;overflow:hidden}\n.ch img{width:76px;height:76px;object-fit:contain;flex:none}.ch .n{font-size:20px;line-height:1.2}.ch small{color:var(--mu);font-size:15px;display:block;margin-top:4px}\n.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:16px 34px;border-radius:14px;background:var(--card);font-size:22px;cursor:pointer;margin-right:14px;min-width:70px}\n.btn.pri{background:var(--ac);color:#fff}\n.det{position:relative;min-height:880px}.det .bg{position:absolute;inset:-40px -56px;background:center/cover;opacity:.25}\n.det .in{position:relative;display:flex;gap:44px}.det .po{width:340px;height:510px;border-radius:16px;background:#222 center/cover;flex:none}\n.det .tx{flex:1;min-width:0}.det h1{margin-bottom:10px}.det .meta{color:var(--mu);font-size:22px;margin-bottom:18px}.det p{font-size:22px;line-height:1.45;max-width:1000px;margin-bottom:26px;color:#d6dbe8}\n.eps{display:grid;grid-template-columns:repeat(auto-fill,150px);gap:14px;margin-top:10px}.ep{padding:16px 0;text-align:center;background:var(--card);border-radius:12px;font-size:21px;cursor:pointer;position:relative;overflow:hidden}\n.ep.vis{color:var(--ac2)}.ep .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--ac2)}\n.kb{display:grid;grid-template-columns:repeat(7,62px);gap:8px;margin-right:36px}.kb .k{height:62px;background:var(--card);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer}\n.sb{display:flex;gap:30px;align-items:flex-start}.sb input{width:100%;font-size:30px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin-bottom:20px}\n.row{display:flex;justify-content:space-between;align-items:center;padding:22px 26px;margin-bottom:12px;background:var(--card);border-radius:14px;font-size:24px;cursor:pointer;max-width:900px}.row small{color:var(--mu);font-size:18px;display:block;margin-top:4px}.row b{color:var(--ac2)}\n#pl{position:absolute;inset:0;display:none;z-index:20}html.assistindo #pl{display:block}\n#pl .top{position:absolute;left:0;right:0;top:0;padding:34px 50px 90px;background:linear-gradient(#000c,#0000);font-size:34px;font-weight:600;opacity:0;transition:opacity .2s}\n#pl .bot{position:absolute;left:0;right:0;bottom:0;padding:90px 60px 40px;background:linear-gradient(#0000,#000d);opacity:0;transition:opacity .2s}\n#pl.osd .top,#pl.osd .bot{opacity:1}\n#pl .pb{height:8px;background:#fff3;border-radius:4px;margin-bottom:10px}#pl .pb i{display:block;height:100%;background:var(--ac2);border-radius:4px;width:0}\n#pl .tm{display:flex;justify-content:space-between;font-size:22px;color:#ccd;margin-bottom:18px}\n#pl .ctl{display:flex;gap:12px;flex-wrap:wrap}#pl .ctl .btn{background:#ffffff22;padding:14px 26px;font-size:22px}\n#pl .sp{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px;border:6px solid #fff4;border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;display:none}\n#pl.buf .sp{display:block}@keyframes sp{to{transform:rotate(360deg)}}\n#gv{position:absolute;left:0;top:0;bottom:0;width:560px;background:#0b0d12ee;padding:26px;overflow-y:auto;display:none;scrollbar-width:none}#gv.on2{display:block}\n#gv .ch{width:100%;margin-bottom:12px;height:90px}#gv .ch img{width:56px;height:56px}\n#toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000c;border:2px solid #fff3;padding:16px 34px;border-radius:30px;font-size:24px;z-index:99;display:none}\n#modal{position:absolute;inset:0;background:#000b;z-index:50;display:none;align-items:center;justify-content:center}\n#modal .box{background:var(--bg2);border-radius:22px;padding:34px 40px;min-width:620px;max-width:1100px;max-height:900px;overflow-y:auto}\n#modal h3{font-size:32px;margin-bottom:20px}#modal .row{max-width:none}\n.vazio{color:var(--mu);font-size:24px;padding:30px 8px}\n\nhtml.nat.assistindo,html.nat.assistindo body,html.nat.assistindo #app,html.nat.assistindo #vl{background:transparent!important}\nhtml.nat.assistindo #vl video{visibility:hidden}\n';
+  var style_default = ':root{--bg:#0b0d12;--bg2:#141821;--card:#1b2030;--tx:#eef1f6;--mu:#9aa3b5;--ac:#7c5cff;--ac2:#2ee6a6;--rd:#ff5d6c}\n*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}\nhtml,body{height:100%;overflow:hidden;background:#000;color:var(--tx);font-family:"Segoe UI",Roboto,Arial,sans-serif}\n#app{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:var(--bg)}\nhtml.exo #app,html.exo body{background:transparent}\n#vl{position:absolute;inset:0;background:#000;display:none}#vl video{width:100%;height:100%;object-fit:contain;background:#000}\nhtml.assistindo #vl{display:block}html.assistindo #ui{display:none}html.exo.assistindo #vl{background:transparent}html.exo.assistindo #vl video{visibility:hidden}\n#ui{position:absolute;inset:0;display:flex}\n#rail{width:110px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;padding:36px 0;gap:10px;flex:none}\n#rail .logo{font-weight:800;font-size:22px;color:var(--ac);margin-bottom:24px;letter-spacing:1px}\n.nb{width:86px;height:86px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mu);font-size:15px;cursor:pointer;border:3px solid transparent}\n.nb svg{width:34px;height:34px;fill:currentColor}.nb.sel{color:var(--tx);background:#222a3e}\n#main{flex:1;min-width:0;height:100%;overflow-y:auto;overflow-x:hidden;padding:40px 56px 80px;scrollbar-width:none}\n#main::-webkit-scrollbar{display:none}\nh1{font-size:44px;font-weight:700;margin-bottom:26px}h2{font-size:30px;font-weight:600;margin:30px 0 16px}\n.f{outline:none;border:3px solid transparent;transition:transform .12s,border-color .12s,background .12s}\n.f.on{border-color:var(--ac2);transform:scale(1.05)}\n.rail{display:flex;gap:22px;overflow-x:auto;padding:10px 8px 14px;margin:0 -8px;scrollbar-width:none}.rail::-webkit-scrollbar{display:none}\n.card{flex:none;width:210px;cursor:pointer;border-radius:14px;background:var(--card);overflow:hidden}\n.card .pi{width:100%;height:315px;background:#222 center/cover no-repeat}\n.card .ti{font-size:17px;padding:10px 10px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.card .bar{height:6px;background:#333}.card .bar i{display:block;height:100%;background:var(--ac2)}\n.grid{display:grid;grid-template-columns:repeat(auto-fill,210px);gap:26px 22px;padding:8px}\n.chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}\n.chip{padding:10px 22px;border-radius:30px;background:var(--card);font-size:19px;cursor:pointer;color:var(--mu)}\n.chip.sel{background:var(--ac);color:#fff}\n.chs{display:grid;grid-template-columns:repeat(auto-fill,300px);gap:20px;padding:8px}\n.ch{height:112px;background:var(--card);border-radius:16px;display:flex;align-items:center;gap:16px;padding:0 18px;cursor:pointer;overflow:hidden}\n.ch img{width:76px;height:76px;object-fit:contain;flex:none}.ch .n{font-size:20px;line-height:1.2}.ch small{color:var(--mu);font-size:15px;display:block;margin-top:4px}\n.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:16px 34px;border-radius:14px;background:var(--card);font-size:22px;cursor:pointer;margin-right:14px;min-width:70px}\n.btn.pri{background:var(--ac);color:#fff}\n.det{position:relative;min-height:880px}.det .bg{position:absolute;inset:-40px -56px;background:center/cover;opacity:.25}\n.det .in{position:relative;display:flex;gap:44px}.det .po{width:340px;height:510px;border-radius:16px;background:#222 center/cover;flex:none}\n.det .tx{flex:1;min-width:0}.det h1{margin-bottom:10px}.det .meta{color:var(--mu);font-size:22px;margin-bottom:18px}.det p{font-size:22px;line-height:1.45;max-width:1000px;margin-bottom:26px;color:#d6dbe8}\n.eps{display:grid;grid-template-columns:repeat(auto-fill,150px);gap:14px;margin-top:10px}.ep{padding:16px 0;text-align:center;background:var(--card);border-radius:12px;font-size:21px;cursor:pointer;position:relative;overflow:hidden}\n.ep.vis{color:var(--ac2)}.ep .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--ac2)}\n.kb{display:grid;grid-template-columns:repeat(7,62px);gap:8px;margin-right:36px}.kb .k{height:62px;background:var(--card);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer}\n.sb{display:flex;gap:30px;align-items:flex-start}.sb input{width:100%;font-size:30px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin-bottom:20px}\n.row{display:flex;justify-content:space-between;align-items:center;padding:22px 26px;margin-bottom:12px;background:var(--card);border-radius:14px;font-size:24px;cursor:pointer;max-width:900px}.row small{color:var(--mu);font-size:18px;display:block;margin-top:4px}.row b{color:var(--ac2)}\n#pl{position:absolute;inset:0;display:none;z-index:20}html.assistindo #pl{display:block}\n#pl .top{position:absolute;left:0;right:0;top:0;padding:34px 50px 90px;background:linear-gradient(#000c,#0000);font-size:34px;font-weight:600;opacity:0;transition:opacity .2s}\n#pl .bot{position:absolute;left:0;right:0;bottom:0;padding:90px 60px 40px;background:linear-gradient(#0000,#000d);opacity:0;transition:opacity .2s}\n#pl.osd .top,#pl.osd .bot{opacity:1}\n#pl .pb{height:8px;background:#fff3;border-radius:4px;margin-bottom:10px}#pl .pb i{display:block;height:100%;background:var(--ac2);border-radius:4px;width:0}\n#pl .tm{display:flex;justify-content:space-between;font-size:22px;color:#ccd;margin-bottom:18px}\n#pl .ctl{display:flex;gap:12px;flex-wrap:wrap}#pl .ctl .btn{background:#ffffff22;padding:14px 26px;font-size:22px}\n#pl .sp{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px;border:6px solid #fff4;border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;display:none}\n#pl.buf .sp{display:block}@keyframes sp{to{transform:rotate(360deg)}}\n#gv{position:absolute;left:0;top:0;bottom:0;width:560px;background:#0b0d12ee;padding:26px;overflow-y:auto;display:none;scrollbar-width:none}#gv.on2{display:block}\n#gv .ch{width:100%;margin-bottom:12px;height:90px}#gv .ch img{width:56px;height:56px}\n#toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000c;border:2px solid #fff3;padding:16px 34px;border-radius:30px;font-size:24px;z-index:99;display:none}\n#modal{position:absolute;inset:0;background:#000b;z-index:50;display:none;align-items:center;justify-content:center}\n#modal .box{background:var(--bg2);border-radius:22px;padding:34px 40px;min-width:620px;max-width:1100px;max-height:900px;overflow-y:auto}\n#modal h3{font-size:32px;margin-bottom:20px}#modal .row{max-width:none}\n.vazio{color:var(--mu);font-size:24px;padding:30px 8px}\n\nhtml.nat.assistindo,html.nat.assistindo body,html.nat.assistindo #app,html.nat.assistindo #vl{background:transparent!important}\nhtml.nat.assistindo #vl video{visibility:hidden}\n';
 
   // src/main.js
   function escala() {
-    const app = $("#app"), w = innerWidth, hh = innerHeight, fill = /[?&]fill=1/.test(location.search);
+    const app = $("#app");
+    if (document.getElementById("drk-fill")) {
+      app.style.transform = "none";
+      app.style.left = "0";
+      app.style.top = "0";
+      app.style.height = "1080px";
+      document.documentElement.style.height = "1080px";
+      document.body.style.height = "1080px";
+      return;
+    }
+    const w = innerWidth, hh = innerHeight, fill = /[?&]fill=1/.test(location.search);
     const s = Math.min(w / 1920, hh / 1080), W = fill ? w / s : 1920, H = fill ? hh / s : 1080;
     app.style.width = W + "px";
     app.style.height = H + "px";
@@ -2174,7 +2753,9 @@
       reabrir();
     });
     go("inicio", null, { push: false });
-    window.__drekz = { go, pl: initWatch.pl };
+    window.__drekz = { go, pl: initWatch.pl, tela: telaAtual };
+    sincNativo();
+    iniciarConnect();
     try {
       localStorage.setItem("drekz_boot", JSON.stringify({ build: window.__DREKZ && window.__DREKZ.build || 1, tries: 0 }));
     } catch (e) {
