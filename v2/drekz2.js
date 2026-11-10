@@ -1130,7 +1130,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.0";
+  var VER = "2.1.1";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -2573,10 +2573,10 @@
     },
     ajustes(m) {
       const p = () => prefs.get(), L = { normal: "Normal (~4 s)", grande: "Grande (~8 s)", maximo: "M\xE1ximo (~15 s)" };
-      const lin = (t, s, val, fn) => {
+      const lin = (t, s, val, fn, nav) => {
         const r = h("div", { class: "row f", onclick: () => {
           fn();
-          reabrirAj();
+          if (!nav) reabrirAj();
         } }, h("div", null, t, s && h("small", null, s)), h("b", null, val));
         return r;
       };
@@ -2603,7 +2603,7 @@
           recarregar && recarregar();
           toast("Recarregando...", 1500);
         }),
-        lin("Conectar celular", "Usar o celular como controle, trocar canal pelo app e sincronizar epis\xF3dios", estado(), () => go("conectar")),
+        lin("Conectar celular", "Usar o celular como controle, trocar canal pelo app e sincronizar epis\xF3dios", estado(), () => go("conectar"), 1),
         lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia s\xF3 dados t\xE9cnicos para eu corrigir problemas. Sem nome, IP ou o que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
           trk.set(!trk.ligado());
           if (trk.ligado()) envia();
