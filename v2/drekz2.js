@@ -311,6 +311,26 @@
     if (ks.length > 400) delete a[ks[0]];
     wr("fok", a);
   } };
+  var hostRep = {
+    nota(h2) {
+      const a = rd("hrep", {})[h2] || [0, 0];
+      return (a[1] + 1) / (a[0] + a[1] + 2);
+    },
+    // 0 = ótima, 1 = péssima, 0.5 = sem dados
+    marca(h2, ok) {
+      if (!h2) return;
+      const a = rd("hrep", {}), x = a[h2] || [0, 0];
+      x[ok ? 0 : 1]++;
+      if (x[0] + x[1] > 24) {
+        x[0] = Math.floor(x[0] / 2);
+        x[1] = Math.floor(x[1] / 2);
+      }
+      a[h2] = x;
+      const ks = Object.keys(a);
+      if (ks.length > 150) delete a[ks[0]];
+      wr("hrep", a);
+    }
+  };
   var cache = { get: rd, set: wr };
 
   // src/data.js
@@ -1130,7 +1150,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.2";
+  var VER = "2.1.3";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1422,6 +1442,7 @@
 
   // src/watch.js
   var bufT = 0;
+  var stallT = 0;
   var pl;
   var P2;
   var S = null;
@@ -1442,11 +1463,30 @@
       },
       buf: (b) => {
         $("#pl").classList.toggle("buf", !!b);
-        if (b) bufT = Date.now();
-        else if (bufT && S) {
+        clearTimeout(stallT);
+        if (b) {
+          bufT = Date.now();
+          if (S && S.kind === "live" && S.up && !S.restart) {
+            const my = S.tok, lim = prefs.get().buffer === "maximo" ? 18e3 : 12e3;
+            stallT = setTimeout(() => {
+              if (S && S.tok === my && S.up && !S.restart) erroLive("Travou por mais de " + Math.round(lim / 1e3) + " s");
+            }, lim);
+          }
+        } else if (bufT && S) {
           const ms = Date.now() - bufT;
           bufT = 0;
-          ms > 1500 && track("trava", { ms, tipo: S.kind, eng: pl.act === pl.nat ? "nativo" : "web" });
+          if (ms > 1500) {
+            const o = { ms, tipo: S.kind, eng: pl.act === pl.nat ? "nativo" : "web" };
+            if (S.kind === "live" && S.ch) {
+              o.canal = S.ch.name;
+              o.fonte = S.vi + 1;
+              o.host = host2(S.ch.variants[S.vi] && S.ch.variants[S.vi].url);
+            } else if (S.srcs) {
+              o.fonte = S.si + 1;
+              o.host = host2(S.srcs[S.si]);
+            }
+            track("trava", o);
+          }
         }
       },
       end: () => {
@@ -1578,28 +1618,34 @@
     S.off = off;
     await sintoniza(S.ch, 0, false);
   }
-  async function sintoniza(ch, vi, manual) {
+  async function sintoniza(ch, vi, manual, ult) {
     const my = ++S.tok;
     S.ch = ch;
     S.vi = vi;
     S.manual = !!manual;
     S.rt = 0;
     S.restart = false;
+    S.up = false;
+    S.rf = false;
+    clearTimeout(stallT);
     $("#pl .tt").textContent = ch.num + " \xB7 " + ch.name + (ch.variants.length > 1 ? "  (fonte " + (vi + 1) + "/" + ch.variants.length + ")" : "");
     osd(true);
     $("#pl").classList.add("buf");
     const n = ch.variants.length;
-    if (!manual && vi === 0) {
+    if (!manual && ult == null && vi === 0) {
       const u = fonteOk.get("c:" + ch.id), ix = ch.variants.findIndex((x) => x.url === u);
       if (ix > 0) vi = ix;
     }
+    const ord = manual ? [...Array(n).keys()].map((k) => (vi + k) % n) : ordena(ch, vi, ult);
     for (let k = 0; k < n; k++) {
-      const i = (vi + k) % n, v = ch.variants[i], t0 = Date.now();
+      const i = ord[k], v = ch.variants[i], t0 = Date.now();
       try {
         await pl.open({ url: v.url, live: true, manual, ua: v.userAgent, ref: v.referer, clearKey: v.clearKey });
         if (!S || my !== S.tok) return;
         S.vi = i;
         S.okT = Date.now();
+        S.up = true;
+        hostRep.marca(host2(v.url), true);
         fonteOk.set("c:" + ch.id, v.url);
         track("live_ok", { canal: ch.name, fonte: i + 1, ms: Date.now() - t0, eng: pl.act === pl.nat ? "nativo" : "web", host: host2(v.url) });
         $("#pl").classList.remove("buf");
@@ -1608,6 +1654,7 @@
         return;
       } catch (e) {
         if (!S || my !== S.tok || e.message === "cancelado") return;
+        hostRep.marca(host2(v.url), false);
         track("live_falha", { canal: ch.name, fonte: i + 1, ms: Date.now() - t0, host: host2(v.url), msg: e.message, manual });
         if (manual) {
           $("#pl").classList.remove("buf");
@@ -1621,15 +1668,24 @@
     track("live_sem_fonte", { canal: ch.name, n });
     toast("Nenhuma fonte abriu esse canal agora.");
   }
-  function erroLive(m) {
+  function ordena(ch, vi, ult) {
+    const n = ch.variants.length, nt = (i) => hostRep.nota(host2(ch.variants[i].url));
+    const rest = [...Array(n).keys()].filter((i) => i !== vi && i !== ult).sort((a, b) => nt(a) - nt(b) || a - b);
+    return ult != null && ult !== vi ? [vi, ...rest, ult] : [vi, ...rest];
+  }
+  function erroLive(m, rf) {
     if (!S || S.kind !== "live" || S.restart) return;
-    if (Date.now() - S.okT > 3e4) S.rt = 0;
-    const ch = S.ch, vi = S.vi, my = S.tok;
-    track("live_queda", { canal: ch.name, fonte: vi + 1, tent: S.rt + 1, msg: m, estavel_s: Math.round((Date.now() - S.okT) / 1e3) });
-    if (S.rt < 2) {
+    clearTimeout(stallT);
+    if (!rf && Date.now() - S.okT > 3e4) S.rt = 0;
+    const ch = S.ch, vi = S.vi, my = S.tok, n = ch.variants.length, max = n > 1 ? 1 : 1e9, est = Math.round((Date.now() - S.okT) / 1e3);
+    S.up = false;
+    track("live_queda", { canal: ch.name, fonte: vi + 1, tent: S.rt + 1, msg: m, estavel_s: est });
+    if (est < 120) hostRep.marca(host2(ch.variants[vi].url), false);
+    if (S.rt < max) {
       S.rt++;
       S.restart = true;
-      toast("A fonte caiu. Reiniciando (" + S.rt + "/2)...", 2500);
+      toast(n > 1 ? "A fonte caiu. Reiniciando..." : "Reconectando... (tentativa " + S.rt + ")", 2500);
+      $("#pl").classList.add("buf");
       setTimeout(async () => {
         if (!S || S.tok !== my) return;
         S.restart = false;
@@ -1639,6 +1695,7 @@
           await pl.open({ url: v.url, live: true, manual: S.manual, ua: v.userAgent, ref: v.referer, clearKey: v.clearKey });
           if (S && S.tok === my) {
             S.okT = Date.now();
+            S.up = true;
             $("#pl").classList.remove("buf");
             track("live_reinicio_ok", { canal: ch.name, fonte: vi + 1 });
           }
@@ -1646,17 +1703,17 @@
           if (S && S.tok === my && e.message !== "cancelado") {
             track("live_reinicio_falha", { canal: ch.name, fonte: vi + 1, msg: e.message });
             S.restart = false;
-            erroLive(e.message);
+            erroLive(e.message, true);
           }
         }
-      }, 1500);
+      }, n > 1 ? 1500 : Math.min(1500 * Math.pow(2, S.rt - 1), 8e3));
     } else {
       S.rt = 0;
       if (S.manual) toast("A fonte caiu. Abra Fontes e escolha outra.");
-      else if (ch.variants.length > 1) {
+      else {
         toast("A fonte n\xE3o voltou. Trocando de fonte...");
-        sintoniza(ch, (vi + 1) % ch.variants.length, false);
-      } else toast("A transmiss\xE3o caiu.");
+        sintoniza(ch, ordena(ch, vi)[1], false, vi);
+      }
     }
   }
   function zap(d) {
@@ -1806,6 +1863,7 @@
     if (S.kind === "vod") grava();
     const off = S.off;
     S.tok++;
+    clearTimeout(stallT);
     pl.stop();
     S = null;
     off && off();
