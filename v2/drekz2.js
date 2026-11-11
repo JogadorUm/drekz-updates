@@ -200,6 +200,12 @@
 
   // src/store.js
   var P = "drekz2_";
+  var avisa = () => {
+    try {
+      dispatchEvent(new Event("drekz-prog"));
+    } catch (e) {
+    }
+  };
   function rd(k, d) {
     try {
       const v = localStorage.getItem(P + k);
@@ -261,6 +267,7 @@
       }
       wr("prog", a);
       espelha(a);
+      avisa();
     },
     del(id) {
       const a = rd("prog", {});
@@ -298,7 +305,38 @@
       const a = rd("favs", []), i = a.indexOf(id);
       i < 0 ? a.push(id) : a.splice(i, 1);
       wr("favs", a);
+      const t = rd("favt", {});
+      t[id] = { t: Date.now(), on: i < 0 ? 1 : 0 };
+      wr("favt", t);
+      avisa();
       return i < 0;
+    },
+    // para sincronizar: {id:{t:quando mudou,on:1|0}} (favoritos antigos, sem data, entram com t=1)
+    mapa() {
+      const a = rd("favs", []), o = __spreadValues({}, rd("favt", {}));
+      a.forEach((id) => {
+        if (!o[id]) o[id] = { t: 1, on: 1 };
+      });
+      return o;
+    },
+    mergeIn(m) {
+      const t = rd("favt", {}), a = rd("favs", []);
+      let n = 0;
+      for (const id in m || {}) {
+        const x = m[id];
+        if (!x || typeof x.t !== "number") continue;
+        const cur2 = t[id] || (a.includes(id) ? { t: 1, on: 1 } : null);
+        if (!cur2 || x.t > cur2.t) {
+          t[id] = { t: x.t, on: x.on ? 1 : 0 };
+          n++;
+        }
+      }
+      if (!n) return 0;
+      wr("favt", t);
+      const s = new Set(a);
+      for (const id in t) t[id].on ? s.add(id) : s.delete(id);
+      wr("favs", [...s]);
+      return n;
     }
   };
   var fonteOk = { get(k) {
@@ -1150,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.4";
+  var VER = "2.1.5";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1471,7 +1509,7 @@
     const n = Date.now();
     return r.map((x, k) => ({ t: x.t, i: x.i, f: k + 1 < r.length ? r[k + 1].i : x.i + 36e5 })).filter((x) => x.f > n).slice(0, 10);
   }
-  function avisa() {
+  function avisa2() {
     if (aviso) return;
     aviso = setTimeout(() => {
       aviso = 0;
@@ -1490,7 +1528,7 @@
             const l = lerMeuGuia(await get("https://meuguia.tv/programacao/canal/" + a[2], { timeout: 12e3 }));
             if (l.length) {
               M.set(norm(a[1]), l);
-              avisa();
+              avisa2();
             }
           } catch (e) {
           }
@@ -1502,7 +1540,7 @@
         d[k] = v.slice(0, 6);
       });
       cache.set("guia", { t: Date.now(), d });
-      avisa();
+      avisa2();
     } catch (e) {
     } finally {
       carregando = 0;
@@ -2610,15 +2648,15 @@
     const cd = codigoTv(), par = () => cfg().par || {};
     const st = h("div", { class: "vazio", style: "padding:6px 8px 14px" }, S2.msgT || estado()), ls = h("div"), pr = h("div");
     const ip = h("input", { class: "f", placeholder: "IP do celular (ex.: 192.168.1.23)", style: "width:520px;font-size:26px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin:10px 0" });
-    const btn = (t, fn, x) => h("div", { class: "btn f" + (x ? " pri" : ""), onclick: fn }, t);
+    const btn2 = (t, fn, x) => h("div", { class: "btn f" + (x ? " pri" : ""), onclick: fn }, t);
     const desenha = () => {
       ls.innerHTML = "";
       pr.innerHTML = "";
-      if (S2.ligado && S2.par) ls.append(btn("Desconectar de " + (S2.par.nome || S2.par.ip), () => desconectar()));
+      if (S2.ligado && S2.par) ls.append(btn2("Desconectar de " + (S2.par.nome || S2.par.ip), () => desconectar()));
       S2.achados.forEach((a) => {
-        (!S2.ligado || !S2.par || S2.par.id !== a.id) && ls.append(btn((a.nome || "Celular") + "  \xB7  " + a.ip + (par()[a.id] ? "  \xB7  pareado" : ""), () => conectar(a), 1));
+        (!S2.ligado || !S2.par || S2.par.id !== a.id) && ls.append(btn2((a.nome || "Celular") + "  \xB7  " + a.ip + (par()[a.id] ? "  \xB7  pareado" : ""), () => conectar(a), 1));
       });
-      Object.keys(par()).forEach((id) => pr.append(btn("Esquecer " + (par()[id].nome || id), () => esquecer(id))));
+      Object.keys(par()).forEach((id) => pr.append(btn2("Esquecer " + (par()[id].nome || id), () => esquecer(id))));
     };
     S2.ui = { msg: (t) => {
       if (st.isConnected) st.textContent = t;
@@ -2631,12 +2669,12 @@
       h("div", { class: "row", style: "cursor:default" }, h("div", null, "C\xF3digo desta TV", h("small", null, "No celular: aba TVs, digite o c\xF3digo e toque em Chamar TV")), h("b", { style: "font-size:34px;letter-spacing:4px" }, cd.slice(0, 4) + " " + cd.slice(4))),
       st,
       ls,
-      btn("Procurar de novo", () => {
+      btn2("Procurar de novo", () => {
         msg("Procurando celulares...");
         varrer();
       }, 1),
       ip,
-      btn("Conectar pelo IP", async () => {
+      btn2("Conectar pelo IP", async () => {
         const v = ip.value.trim();
         if (!/^\d+\.\d+\.\d+\.\d+$/.test(v)) return msg("Digite o IP assim: 192.168.1.23");
         const r = await sonda(v, 2500);
@@ -2650,6 +2688,531 @@
       msg("Procurando celulares...");
       varrer();
     }
+  }
+
+  // src/qr.js
+  var TAB = [null, [26, 10, 1], [44, 16, 1], [70, 26, 1], [100, 18, 2], [134, 24, 2], [172, 16, 4]];
+  var ALIN = [null, [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34]];
+  var EXP = new Array(512);
+  var LOG = new Array(256);
+  (function() {
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      EXP[i] = x;
+      LOG[x] = i;
+      x <<= 1;
+      if (x & 256) x ^= 285;
+    }
+    for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  })();
+  var mul = (a, b) => a === 0 || b === 0 ? 0 : EXP[LOG[a] + LOG[b]];
+  function rs(data, n) {
+    let g = [1];
+    for (let i = 0; i < n; i++) {
+      const ng = new Array(g.length + 1).fill(0);
+      for (let j = 0; j < g.length; j++) {
+        ng[j] ^= g[j];
+        ng[j + 1] ^= mul(g[j], EXP[i]);
+      }
+      g = ng;
+    }
+    const r = new Array(n).fill(0);
+    for (const d of data) {
+      const f = d ^ r[0];
+      r.shift();
+      r.push(0);
+      for (let i = 0; i < n; i++) r[i] ^= mul(g[i + 1], f);
+    }
+    return r;
+  }
+  function codewords(bytes, v) {
+    const [tot, ec, nb] = TAB[v], dcw = tot - ec * nb, bits = [];
+    const put = (val, len) => {
+      for (let i = len - 1; i >= 0; i--) bits.push(val >>> i & 1);
+    };
+    put(4, 4);
+    put(bytes.length, 8);
+    bytes.forEach((b) => put(b, 8));
+    for (let i = 0; i < 4 && bits.length < dcw * 8; i++) bits.push(0);
+    while (bits.length % 8) bits.push(0);
+    const d = [];
+    for (let i = 0; i < bits.length; i += 8) {
+      let x = 0;
+      for (let j = 0; j < 8; j++) x = x << 1 | bits[i + j];
+      d.push(x);
+    }
+    for (let p = 0; d.length < dcw; p ^= 1) d.push(p ? 17 : 236);
+    const per = dcw / nb, blocks = [], ecs = [];
+    for (let i = 0; i < nb; i++) {
+      const b = d.slice(i * per, (i + 1) * per);
+      blocks.push(b);
+      ecs.push(rs(b, ec));
+    }
+    const out = [];
+    for (let i = 0; i < per; i++) for (let b = 0; b < nb; b++) out.push(blocks[b][i]);
+    for (let i = 0; i < ec; i++) for (let b = 0; b < nb; b++) out.push(ecs[b][i]);
+    return out;
+  }
+  function utf8(s) {
+    return Array.from(unescape(encodeURIComponent(s)), (c) => c.charCodeAt(0));
+  }
+  function qrMatrix(text) {
+    const bytes = utf8(text), cap = [0, 14, 26, 42, 62, 84, 106];
+    let v = 1;
+    while (v <= 6 && bytes.length > cap[v]) v++;
+    if (v > 6) throw new Error("QR: texto longo demais");
+    const size = 17 + 4 * v, cw = codewords(bytes, v);
+    const M2 = [], F = [];
+    for (let i = 0; i < size; i++) {
+      M2.push(new Array(size).fill(false));
+      F.push(new Array(size).fill(false));
+    }
+    const setF = (x, y, d) => {
+      if (x >= 0 && y >= 0 && x < size && y < size) {
+        M2[y][x] = d;
+        F[y][x] = true;
+      }
+    };
+    for (let i = 0; i < size; i++) {
+      setF(6, i, i % 2 === 0);
+      setF(i, 6, i % 2 === 0);
+    }
+    const finder = (cx, cy) => {
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const d = Math.max(Math.abs(dx), Math.abs(dy));
+        setF(cx + dx, cy + dy, d !== 2 && d !== 4);
+      }
+    };
+    finder(3, 3);
+    finder(size - 4, 3);
+    finder(3, size - 4);
+    const al = ALIN[v];
+    for (let i = 0; i < al.length; i++) for (let j = 0; j < al.length; j++) {
+      if (i === 0 && j === 0 || i === 0 && j === al.length - 1 || i === al.length - 1 && j === 0) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) setF(al[i] + dx, al[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }
+    const formato = (mask) => {
+      const data = mask;
+      let rem = data;
+      for (let i = 0; i < 10; i++) rem = rem << 1 ^ (rem >>> 9) * 1335;
+      const bits = (data << 10 | rem) ^ 21522, bit = (i) => (bits >>> i & 1) !== 0;
+      for (let i = 0; i <= 5; i++) setF(8, i, bit(i));
+      setF(8, 7, bit(6));
+      setF(8, 8, bit(7));
+      setF(7, 8, bit(8));
+      for (let i = 9; i < 15; i++) setF(14 - i, 8, bit(i));
+      for (let i = 0; i < 8; i++) setF(size - 1 - i, 8, bit(i));
+      for (let i = 8; i < 15; i++) setF(8, size - 15 + i, bit(i));
+      setF(8, size - 8, true);
+    };
+    formato(0);
+    let k = 0;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, up = (right + 1 & 2) === 0, y = up ? size - 1 - vert : vert;
+        if (!F[y][x] && k < cw.length * 8) {
+          M2[y][x] = (cw[k >>> 3] >>> 7 - (k & 7) & 1) !== 0;
+          k++;
+        }
+      }
+    }
+    const cond = [
+      (x, y) => (x + y) % 2 === 0,
+      (x, y) => y % 2 === 0,
+      (x) => x % 3 === 0,
+      (x, y) => (x + y) % 3 === 0,
+      (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0,
+      (x, y) => x * y % 2 + x * y % 3 === 0,
+      (x, y) => (x * y % 2 + x * y % 3) % 2 === 0,
+      (x, y) => ((x + y) % 2 + x * y % 3) % 2 === 0
+    ];
+    const aplica = (m) => {
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!F[y][x] && cond[m](x, y)) M2[y][x] = !M2[y][x];
+    };
+    const penal = () => {
+      let p = 0, claros = 0;
+      const linha = (get2) => {
+        for (let a = 0; a < size; a++) {
+          let run = 1, s = "";
+          for (let b = 0; b < size; b++) {
+            const c = get2(a, b);
+            s += c ? "1" : "0";
+            if (b > 0) {
+              if (c === get2(a, b - 1)) {
+                run++;
+                if (run === 5) p += 3;
+                else if (run > 5) p++;
+              } else run = 1;
+            }
+          }
+          for (let i = 0; i + 11 <= size; i++) {
+            const w = s.substr(i, 11);
+            if (w === "10111010000" || w === "00001011101") p += 40;
+          }
+        }
+      };
+      linha((a, b) => M2[a][b]);
+      linha((a, b) => M2[b][a]);
+      for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++) {
+        const c = M2[y][x];
+        if (c === M2[y][x + 1] && c === M2[y + 1][x] && c === M2[y + 1][x + 1]) p += 3;
+      }
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (M2[y][x]) claros++;
+      p += Math.floor(Math.abs(claros * 20 - size * size * 10) / (size * size)) * 10;
+      return p;
+    };
+    let melhor = 0, pm = 1e9;
+    for (let m = 0; m < 8; m++) {
+      aplica(m);
+      formato(m);
+      const p = penal();
+      if (p < pm) {
+        pm = p;
+        melhor = m;
+      }
+      aplica(m);
+    }
+    aplica(melhor);
+    formato(melhor);
+    return M2;
+  }
+  function qrCanvas(text, px) {
+    const m = qrMatrix(text), n = m.length + 8, s = Math.max(2, Math.floor((px || 320) / n)), c = document.createElement("canvas");
+    c.width = c.height = n * s;
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff";
+    g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = "#000";
+    for (let y = 0; y < m.length; y++) for (let x = 0; x < m.length; x++) if (m[y][x]) g.fillRect((x + 4) * s, (y + 4) * s, s, s);
+    return c;
+  }
+
+  // src/conta.js
+  var conta = () => cache.get("conta", {});
+  var salva2 = (o) => {
+    const c = __spreadValues(__spreadValues({}, conta()), o);
+    if (o === null) return cache.set("conta", {});
+    cache.set("conta", c);
+  };
+  var contaEstado = () => {
+    const c = conta();
+    return c.token ? c.u : "Entrar";
+  };
+  var cfgJ = null;
+  var cfgT = 0;
+  async function cfg2() {
+    if (cfgJ && Date.now() - cfgT < 36e5) return cfgJ;
+    const d = window.__DREKZ;
+    if (!d) {
+      cfgJ = {};
+      cfgT = Date.now();
+      return cfgJ;
+    }
+    try {
+      cfgJ = JSON.parse(await get(d.base + "v2/config.json?t=" + Date.now(), { timeout: 8e3, cache: "no-store" }));
+    } catch (e) {
+      cfgJ = cfgJ || {};
+    }
+    cfgT = Date.now();
+    return cfgJ;
+  }
+  var baseSite = () => window.__DREKZ && window.__DREKZ.base || "https://jogadorum.github.io/drekz-updates/";
+  async function api(rota, corpo) {
+    const c = await cfg2();
+    if (!c.sync) throw new Error("O servi\xE7o de contas ainda n\xE3o foi ativado.");
+    const ctl = typeof AbortController !== "undefined" ? new AbortController() : null, tm = setTimeout(() => ctl && ctl.abort(), 15e3);
+    try {
+      const r = await fetch(c.sync.replace(/\/+$/, "") + rota, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify(corpo || {}), signal: ctl && ctl.signal });
+      let j;
+      try {
+        j = await r.json();
+      } catch (e) {
+        throw new Error("Sem resposta do servidor (" + r.status + ").");
+      }
+      if (!j.ok) {
+        const e = new Error(j.erro || "Erro");
+        e.st = r.status;
+        throw e;
+      }
+      return j;
+    } catch (e) {
+      if (e.name === "AbortError") throw new Error("O servidor demorou demais. Tente de novo.");
+      if (/Failed to fetch|NetworkError|Load failed/i.test(e.message)) throw new Error("Sem conex\xE3o com o servidor.");
+      throw e;
+    } finally {
+      clearTimeout(tm);
+    }
+  }
+  var ocupado2 = false;
+  async function sincroniza(manual) {
+    const c = conta();
+    if (!c.token || ocupado2) return false;
+    ocupado2 = true;
+    try {
+      const prog = {}, p = progress.all();
+      for (const k in p) if (/^[fs]_/.test(k) && p[k] && p[k].title) prog[k] = p[k];
+      const r = await api("/sync", { token: c.token, prog, fav: favs.mapa() });
+      const a = progress.mergeIn(r.prog), b = favs.mergeIn(r.fav);
+      salva2({ ult: Date.now() });
+      if (manual) toast(a || b ? "Sincronizado: dados de outros aparelhos chegaram." : "Tudo sincronizado.");
+      try {
+        dispatchEvent(new Event("drekz-conta"));
+      } catch (e) {
+      }
+      return true;
+    } catch (e) {
+      if (e.st === 401) {
+        salva2(null);
+        toast("Sua sess\xE3o expirou. Entre na conta de novo.", 5e3);
+      } else if (manual) toast(e.message, 4e3);
+      return false;
+    } finally {
+      ocupado2 = false;
+    }
+  }
+  function iniciaConta() {
+    setTimeout(() => sincroniza(false), 6e3);
+    setInterval(() => sincroniza(false), 24e4);
+    let t = 0;
+    addEventListener("drekz-prog", () => {
+      if (!conta().token) return;
+      clearTimeout(t);
+      t = setTimeout(() => sincroniza(false), 45e3);
+    });
+  }
+  var btn = (t, fn, x) => h("div", { class: "btn f" + (x ? " pri" : ""), onclick: fn }, t);
+  var aleat = (n) => {
+    const A = "abcdefghjkmnpqrstuvwxyz23456789";
+    let s = "";
+    const b = new Uint8Array(n);
+    (window.crypto || window.msCrypto).getRandomValues(b);
+    for (let i = 0; i < n; i++) s += A[b[i] % A.length];
+    return s;
+  };
+  var agrupa = (c) => String(c).replace(/(.{3})(?=.)/g, "$1 ");
+  function telaConta(m) {
+    m.innerHTML = "";
+    m.append(h("h1", null, "Conta"));
+    const corpo = h("div"), msg2 = h("div", { class: "vazio", style: "padding:6px 8px 14px;min-height:34px" });
+    m.append(msg2, corpo);
+    const aviso2 = (t) => {
+      msg2.textContent = t || "";
+    };
+    let parar = null;
+    const limpa = () => {
+      if (parar) {
+        parar();
+        parar = null;
+      }
+      corpo.innerHTML = "";
+    };
+    const foco = () => focus(corpo.querySelector("[data-first]") || corpo.querySelector(".f"));
+    async function inicio() {
+      limpa();
+      aviso2("");
+      const c = await cfg2();
+      if (!c.sync) {
+        corpo.append(h("div", { class: "vazio" }, "O servi\xE7o de contas ainda n\xE3o foi ativado nesta vers\xE3o do Drekz."));
+        return;
+      }
+      const u = conta();
+      if (u.token) {
+        aviso2("Conectado como " + u.u + (u.ult ? " \xB7 \xFAltima sincroniza\xE7\xE3o " + new Date(u.ult).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""));
+        corpo.append(
+          h("div", { class: "vazio", style: "max-width:900px" }, 'Seus favoritos e o "Continuar assistindo" s\xE3o sincronizados com os outros aparelhos que entrarem nesta conta.'),
+          btn("Sincronizar agora", async () => {
+            aviso2("Sincronizando...");
+            await sincroniza(true);
+            inicio();
+          }, 1),
+          btn("Sair deste aparelho", () => {
+            salva2(null);
+            toast("Voc\xEA saiu da conta.");
+            inicio();
+          }),
+          btn("Apagar minha conta", () => formulario("apagar"))
+        );
+      } else {
+        corpo.append(
+          h("div", { class: "vazio", style: "max-width:900px" }, 'Entre para levar seus favoritos e o "Continuar assistindo" para a TV, o celular e outros aparelhos. \xC9 opcional.'),
+          btn("Entrar com o celular (QR code)", () => qr(), 1),
+          btn("Entrar com usu\xE1rio e senha", () => formulario("entrar")),
+          btn("Criar conta", () => formulario("criar")),
+          btn("Esqueci a senha", () => formulario("recuperar"))
+        );
+      }
+      foco();
+    }
+    async function qr() {
+      limpa();
+      aviso2("Gerando c\xF3digo...");
+      const seg = aleat(24);
+      let r;
+      try {
+        r = await api("/vinc/novo", { s: seg });
+      } catch (e) {
+        aviso2(e.message);
+        corpo.append(btn("Voltar", inicio));
+        foco();
+        return;
+      }
+      const url3 = baseSite() + "conta/?c=" + r.c;
+      let cv;
+      try {
+        cv = qrCanvas(url3, 420);
+      } catch (e) {
+        cv = h("div", { class: "vazio" }, "N\xE3o foi poss\xEDvel desenhar o QR code.");
+      }
+      cv.style.cssText = "border-radius:14px;flex:none";
+      aviso2("");
+      corpo.append(
+        h(
+          "div",
+          { style: "display:flex;gap:44px;align-items:center;margin-bottom:22px" },
+          cv,
+          h(
+            "div",
+            { style: "font-size:26px;line-height:1.45;max-width:760px" },
+            h("div", null, "1. Aponte a c\xE2mera do celular para o QR code."),
+            h("div", null, "2. Entre (ou crie a conta) e toque em ", h("b", null, "Vincular TV"), "."),
+            h("div", { style: "margin-top:16px;color:var(--mu);font-size:22px" }, "Sem c\xE2mera? Abra ", h("b", { style: "color:var(--tx)" }, url3.replace(/^https?:\/\//, "").replace(/\?.*/, "")), " e digite o c\xF3digo:"),
+            h("div", { style: "font-size:56px;font-weight:800;letter-spacing:6px;margin-top:6px" }, agrupa(r.c)),
+            h("div", { style: "color:var(--mu);font-size:20px;margin-top:6px" }, "O c\xF3digo vale 5 minutos.")
+          )
+        ),
+        btn("Gerar outro c\xF3digo", qr),
+        btn("Voltar", inicio)
+      );
+      foco();
+      let vivo = true;
+      parar = () => {
+        vivo = false;
+      };
+      const t0 = Date.now();
+      const volta = async () => {
+        if (!vivo || !cv.isConnected) return;
+        if (Date.now() - t0 > 3e5) {
+          aviso2("O c\xF3digo expirou.");
+          return;
+        }
+        try {
+          const v = await api("/vinc/ver", { c: r.c, s: seg });
+          if (v.st === "ok") {
+            salva2({ u: v.u, token: v.token, ult: 0 });
+            toast("Conectado como " + v.u, 3500);
+            await sincroniza(true);
+            if (vivo) inicio();
+            return;
+          }
+          if (v.st === "expirou") {
+            aviso2("O c\xF3digo expirou.");
+            return;
+          }
+        } catch (e) {
+        }
+        setTimeout(volta, 3e3);
+      };
+      setTimeout(volta, 3e3);
+    }
+    function formulario(modo) {
+      limpa();
+      aviso2("");
+      const campos = {
+        entrar: [["u", "Usu\xE1rio", 0], ["p", "Senha", 1]],
+        criar: [["u", "Usu\xE1rio (3 a 20: letras min\xFAsculas, n\xFAmeros . _ -)", 0], ["p", "Senha (m\xEDnimo 6)", 1], ["e", "E-mail de recupera\xE7\xE3o (opcional)", 0]],
+        recuperar: [["u", "Usu\xE1rio", 0], ["r", "C\xF3digo de recupera\xE7\xE3o (12 caracteres)", 0], ["n", "Nova senha (m\xEDnimo 6)", 1]],
+        apagar: [["p", "Digite sua senha para apagar a conta", 1]]
+      }[modo];
+      const titulo = { entrar: "Entrar", criar: "Criar conta", recuperar: "Recuperar senha", apagar: "Apagar conta" }[modo];
+      const ins = {};
+      let alvo = null;
+      const linhas = campos.map(([k, ph, sn], i) => {
+        const inp = h("input", { class: "f", type: sn ? "password" : "text", placeholder: ph, autocomplete: "off", autocapitalize: "off", spellcheck: "false", style: "width:100%;max-width:720px;font-size:26px;padding:12px 18px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin-bottom:12px;display:block" });
+        if (i === 0) inp.setAttribute("data-first", "1");
+        ins[k] = inp;
+        inp.addEventListener("drekzfoco", () => {
+          alvo = inp;
+        });
+        inp.addEventListener("click", () => {
+          alvo = inp;
+        });
+        return inp;
+      });
+      alvo = linhas[0];
+      let up = false;
+      const kb = h("div", { class: "kb" }), teclas = "abcdefghijklmnopqrstuvwxyz0123456789._-@!#$%&*".split("").concat(["Aa", "\u232B"]);
+      const desenhaKb = () => {
+        kb.innerHTML = "";
+        teclas.forEach((t) => kb.append(h("div", { class: "k f", onclick: () => {
+          if (!alvo) return;
+          if (t === "\u232B") alvo.value = alvo.value.slice(0, -1);
+          else if (t === "Aa") {
+            up = !up;
+            desenhaKb();
+            return;
+          } else alvo.value += up ? t.toUpperCase() : t;
+        } }, t === "Aa" || t === "\u232B" ? t : up ? t.toUpperCase() : t)));
+      };
+      desenhaKb();
+      const enviar = async () => {
+        const v = (k) => ins[k] ? ins[k].value : "";
+        aviso2("Aguarde...");
+        try {
+          if (modo === "entrar") {
+            const r = await api("/entrar", { u: v("u").trim(), p: v("p") });
+            salva2({ u: r.u, token: r.token, ult: 0 });
+            toast("Conectado como " + r.u, 3500);
+            await sincroniza(true);
+            inicio();
+          } else if (modo === "criar") {
+            const r = await api("/registrar", { u: v("u").trim().toLowerCase(), p: v("p"), e: v("e").trim() });
+            salva2({ u: r.u, token: r.token, ult: 0 });
+            codigoRec(r.recuperacao);
+          } else if (modo === "recuperar") {
+            const r = await api("/recuperar", { u: v("u").trim(), p: v("r"), n: v("n") });
+            salva2({ u: r.u, token: r.token, ult: 0 });
+            toast("Senha alterada. Conectado como " + r.u, 4e3);
+            await sincroniza(true);
+            inicio();
+          } else if (modo === "apagar") {
+            await api("/apagar", { token: conta().token, p: v("p") });
+            salva2(null);
+            toast("Conta apagada.");
+            inicio();
+          }
+        } catch (e) {
+          aviso2(e.message);
+        }
+      };
+      const col = h("div", { style: "flex:none" });
+      col.append(kb);
+      corpo.append(h("h2", { style: "margin:0 0 12px" }, titulo), h("div", { style: "display:flex;gap:30px;align-items:flex-start" }, col, h(
+        "div",
+        { style: "flex:1;min-width:0" },
+        ...linhas,
+        btn(titulo, enviar, 1),
+        btn("Cancelar", inicio),
+        modo === "recuperar" ? h("div", { class: "vazio", style: "font-size:20px" }, "Perdeu o c\xF3digo tamb\xE9m? Fale com o suporte do Drekz pelo e-mail que voc\xEA cadastrou.") : null
+      )));
+      foco();
+    }
+    function codigoRec(rec) {
+      limpa();
+      aviso2("");
+      const g = String(rec).replace(/(.{4})(?=.)/g, "$1-");
+      corpo.append(
+        h("div", { style: "font-size:26px;max-width:900px;line-height:1.5" }, "Conta criada! Anote seu ", h("b", null, "c\xF3digo de recupera\xE7\xE3o"), ". Ele aparece s\xF3 desta vez e serve para criar uma senha nova se voc\xEA esquecer a atual."),
+        h("div", { style: "font-size:58px;font-weight:800;letter-spacing:5px;margin:22px 0" }, g),
+        btn("J\xE1 anotei", () => {
+          toast("Conectado como " + conta().u, 3e3);
+          sincroniza(true);
+          inicio();
+        }, 1)
+      );
+      foco();
+    }
+    inicio();
   }
 
   // src/screens.js
@@ -2806,6 +3369,9 @@
     conectar(m) {
       telaConectar(m);
     },
+    conta(m) {
+      telaConta(m);
+    },
     busca(m, arg) {
       const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("");
       const inp = h("input", { class: "f", placeholder: "Digite o nome (sem acento tudo bem)", autocomplete: "off", "data-first": 1 });
@@ -2869,6 +3435,7 @@
           recarregar && recarregar();
           toast("Recarregando...", 1500);
         }),
+        lin("Conta", 'Entre para sincronizar favoritos e "Continuar assistindo" entre TV, celular e outros aparelhos', contaEstado(), () => go("conta"), 1),
         lin("Conectar celular", "Usar o celular como controle, trocar canal pelo app e sincronizar epis\xF3dios", estado(), () => go("conectar"), 1),
         lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia s\xF3 dados t\xE9cnicos para eu corrigir problemas. Sem nome, IP ou o que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
           trk.set(!trk.ligado());
@@ -3032,6 +3599,7 @@
     iniciarUpd();
     iniciarTrack();
     iniciaGuia();
+    iniciaConta();
     if (trk.ligado() === null) setTimeout(() => modal("Ajude a melhorar o Drekz TV", [
       { t: "Permitir relat\xF3rios de erro", s: "Envia s\xF3 dados t\xE9cnicos (modelo da TV, vers\xE3o, erros de canal). Sem nome, sem IP e sem o que voc\xEA assiste. D\xE1 para desligar em Ajustes.", fn: () => {
         trk.set(true);

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<title>Conta Drekz</title>
+<style>
+:root{--bg:#0b0d12;--card:#161b27;--card2:#1e2433;--tx:#eef1f6;--mu:#9aa3b5;--ac:#7c5cff;--ok:#2ee6a6;--rd:#ff5d6c}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:460px;margin:0 auto;padding:max(24px,env(safe-area-inset-top)) 16px max(32px,env(safe-area-inset-bottom))}
+.logo{font-weight:800;letter-spacing:.14em;color:var(--ac);font-size:15px}
+h1{font-size:26px;margin:6px 0 4px}
+p{color:var(--mu);margin:6px 0 14px}
+.card{background:var(--card);border-radius:18px;padding:18px;margin:14px 0}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab{flex:1;padding:12px;border-radius:12px;background:var(--card2);color:var(--mu);border:0;font:inherit;font-weight:600}
+.tab.on{background:var(--ac);color:#fff}
+label{display:block;font-size:14px;color:var(--mu);margin:12px 0 5px}
+input{width:100%;font:inherit;font-size:17px;padding:14px;border-radius:12px;border:2px solid transparent;background:var(--card2);color:var(--tx);outline:0}
+input:focus{border-color:var(--ac)}
+input.cod{font-size:30px;letter-spacing:.3em;text-align:center;font-weight:800}
+button.b{width:100%;margin-top:16px;padding:15px;border-radius:12px;border:0;background:var(--ac);color:#fff;font:inherit;font-weight:700;font-size:17px}
+button.b.g{background:var(--card2);color:var(--tx);font-weight:600}
+button.b.r{background:transparent;color:var(--rd);border:1px solid var(--rd)}
+button:disabled{opacity:.55}
+.msg{min-height:22px;margin-top:12px;font-size:15px}.msg.e{color:var(--rd)}.msg.o{color:var(--ok)}
+.rec{font:800 26px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-align:center;background:var(--card2);border-radius:12px;padding:16px;margin:12px 0;user-select:all;word-break:break-all}
+small,.peq{color:var(--mu);font-size:13px}
+a{color:var(--ac)}
+.hide{display:none!important}
+details summary{cursor:pointer;color:var(--mu);padding:8px 0}
+</style>
+</head>
+<body>
+<main>
+  <div class="logo">DREKZ</div>
+  <h1>Conta Drekz</h1>
+  <p id="sub">Sincronize favoritos e “continuar assistindo” entre a TV, o celular e outros aparelhos.</p>
+
+  <section id="aviso" class="card hide"></section>
+
+  <!-- sem login -->
+  <section id="vOut" class="card hide">
+    <div class="tabs"><button class="tab on" data-t="entrar">Entrar</button><button class="tab" data-t="criar">Criar conta</button></div>
+    <form id="fEntrar" autocomplete="on">
+      <label for="eu">Usuário</label><input id="eu" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+      <label for="ep">Senha</label><input id="ep" name="password" type="password" autocomplete="current-password">
+      <button class="b" type="submit">Entrar</button>
+    </form>
+    <form id="fCriar" class="hide" autocomplete="on">
+      <label for="cu">Usuário <small>(3 a 20: letras minúsculas, números, . _ -)</small></label><input id="cu" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+      <label for="cp">Senha <small>(mínimo 6)</small></label><input id="cp" name="new-password" type="password" autocomplete="new-password">
+      <label for="ce">E-mail de recuperação <small>(opcional)</small></label><input id="ce" name="email" type="email" autocomplete="email" autocapitalize="none">
+      <p class="peq" id="pEmail">Com e-mail, o suporte consegue redefinir sua senha se você a esquecer e perder o código de recuperação.</p>
+      <button class="b" type="submit">Criar conta</button>
+    </form>
+    <details><summary>Esqueci a senha</summary>
+      <form id="fRec" autocomplete="off">
+        <label for="ru">Usuário</label><input id="ru" autocapitalize="none" autocorrect="off" spellcheck="false">
+        <label for="rr">Código de recuperação <small>(12 caracteres, mostrado quando você criou a conta)</small></label><input id="rr" autocapitalize="characters" spellcheck="false">
+        <label for="rn">Nova senha</label><input id="rn" type="password" autocomplete="new-password">
+        <button class="b g" type="submit">Trocar senha</button>
+        <p class="peq" id="pContato"></p>
+      </form>
+    </details>
+  </section>
+
+  <!-- código de recuperação (logo após criar a conta) -->
+  <section id="vRec" class="card hide">
+    <h2 style="margin:0 0 6px;font-size:20px">Conta criada!</h2>
+    <p>Anote este <b>código de recuperação</b>. Ele aparece só agora e serve para criar uma senha nova se você esquecer a atual.</p>
+    <div class="rec" id="recCod"></div>
+    <button class="b g" id="bCopia" type="button">Copiar código</button>
+    <button class="b" id="bRecOk" type="button">Já anotei, continuar</button>
+  </section>
+
+  <!-- com login -->
+  <section id="vIn" class="card hide">
+    <p style="margin:0 0 4px">Conectado como</p>
+    <h2 style="margin:0 0 4px;font-size:22px" id="quem"></h2>
+    <p class="peq" id="emailInfo" style="margin:0"></p>
+  </section>
+
+  <section id="vVinc" class="card hide">
+    <h2 style="margin:0 0 6px;font-size:20px">Vincular uma TV</h2>
+    <p>Na TV, abra <b>Ajustes → Conta → Entrar com o celular</b> e digite aqui o código de 6 números que aparece.</p>
+    <input id="vc" class="cod" inputmode="numeric" maxlength="7" placeholder="000 000" autocomplete="off">
+    <button class="b" id="bVinc" type="button">Vincular TV</button>
+  </section>
+
+  <section id="vMais" class="card hide">
+    <details><summary>Mais opções da conta</summary>
+      <form id="fSenha"><label for="sa">Senha atual</label><input id="sa" type="password" autocomplete="current-password"><label for="sn">Nova senha</label><input id="sn" type="password" autocomplete="new-password"><button class="b g" type="submit">Trocar senha</button></form>
+      <form id="fEmail"><label for="ee">E-mail de recuperação <small>(vazio = remover)</small></label><input id="ee" type="email" autocomplete="email" autocapitalize="none"><label for="ez">Senha</label><input id="ez" type="password" autocomplete="current-password"><button class="b g" type="submit">Salvar e-mail</button></form>
+      <button class="b g" id="bTodos" type="button">Sair de todos os aparelhos</button>
+      <form id="fApagar"><label for="ap">Para apagar a conta e todos os dados, digite sua senha</label><input id="ap" type="password" autocomplete="current-password"><button class="b r" type="submit">Apagar minha conta</button></form>
+    </details>
+    <button class="b g" id="bSair" type="button">Sair deste navegador</button>
+  </section>
+
+  <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  <p class="peq" style="margin-top:22px">O Drekz guarda apenas: nome de usuário, a senha em formato criptografado (ninguém consegue ler), o e-mail se você informar, seus favoritos e o ponto onde parou. Você pode apagar tudo a qualquer momento nesta página.</p>
+</main>
+<script>
+(function(){
+  "use strict";
+  var K="drekz_web", $=function(i){return document.getElementById(i)};
+  var cfg={}, st={};
+  try{ st=JSON.parse(localStorage.getItem(K)||"{}") }catch(e){ st={} }
+  function salva(o){ st=o||{}; try{ localStorage.setItem(K,JSON.stringify(st)) }catch(e){} }
+  function msg(t,cls){ var m=$("msg"); m.textContent=t||""; m.className="msg"+(cls?" "+cls:"") }
+  function show(id,on){ $(id).classList[on?"remove":"add"]("hide") }
+  function sync(){ return (cfg.sync||"").replace(/\/+$/,"") }
+
+  function api(rota,corpo){
+    if(!sync()) return Promise.reject(new Error("O serviço de contas ainda não foi ativado."));
+    return fetch(sync()+rota,{method:"POST",headers:{"content-type":"text/plain"},body:JSON.stringify(corpo||{})})
+      .then(function(r){ return r.json().then(function(j){ if(!j.ok){ var e=new Error(j.erro||"Erro"); e.st=r.status; throw e } return j },function(){ throw new Error("Sem resposta do servidor ("+r.status+").") }) },
+            function(){ throw new Error("Sem conexão com o servidor.") });
+  }
+  function ocupado(form,on){ var b=form.querySelectorAll("button"); for(var i=0;i<b.length;i++) b[i].disabled=on }
+  function envia(form,fn){ form.addEventListener("submit",function(ev){ ev.preventDefault(); msg("Aguarde..."); ocupado(form,true);
+    Promise.resolve().then(fn).then(function(){ if($("msg").textContent==="Aguarde...") msg("") },function(e){ msg(e.message,"e") }).then(function(){ ocupado(form,false) }) }) }
+
+  var cod=(new URLSearchParams(location.search).get("c")||"").replace(/\D/g,"").slice(0,6);
+  if(cod) $("vc").value=cod.slice(0,3)+" "+cod.slice(3);
+  $("vc").addEventListener("input",function(){ var d=this.value.replace(/\D/g,"").slice(0,6); this.value=d.length>3?d.slice(0,3)+" "+d.slice(3):d });
+
+  function desenha(){
+    var logado=!!st.token;
+    show("vOut",!logado); show("vIn",logado); show("vVinc",logado); show("vMais",logado);
+    if(logado){ $("quem").textContent=st.u;
+      api("/eu",{token:st.token}).then(function(r){ $("emailInfo").textContent=r.email?("E-mail de recuperação: "+r.email):"Sem e-mail de recuperação cadastrado." },
+        function(e){ if(e.st===401){ salva({}); msg("Sua sessão expirou. Entre de novo.","e"); desenha() } }) }
+  }
+  function sessao(r){ salva({u:r.u,token:r.token}); }
+
+  // abas entrar/criar
+  var tabs=document.querySelectorAll(".tab");
+  for(var i=0;i<tabs.length;i++) tabs[i].addEventListener("click",function(){ for(var j=0;j<tabs.length;j++) tabs[j].classList.toggle("on",tabs[j]===this);
+    show("fEntrar",this.dataset.t==="entrar"); show("fCriar",this.dataset.t==="criar"); msg("") });
+
+  envia($("fEntrar"),function(){ return api("/entrar",{u:$("eu").value.trim(),p:$("ep").value}).then(function(r){ sessao(r); msg(""); desenha() }) });
+  envia($("fCriar"),function(){ return api("/registrar",{u:$("cu").value.trim().toLowerCase(),p:$("cp").value,e:$("ce").value.trim()}).then(function(r){
+    sessao(r); msg(""); show("vOut",false); $("recCod").textContent=String(r.recuperacao).replace(/(.{4})(?=.)/g,"$1-"); show("vRec",true) }) });
+  $("bCopia").addEventListener("click",function(){ var t=$("recCod").textContent; (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){ msg("Código copiado.","o") },function(){ msg("Toque no código para selecionar e copiar.") }) });
+  $("bRecOk").addEventListener("click",function(){ show("vRec",false); desenha() });
+  envia($("fRec"),function(){ return api("/recuperar",{u:$("ru").value.trim(),p:$("rr").value,n:$("rn").value}).then(function(r){ sessao(r); msg("Senha alterada. Você está conectado.","o"); desenha() }) });
+
+  $("bVinc").addEventListener("click",function(){
+    var c=$("vc").value.replace(/\D/g,""); if(c.length!==6){ msg("Digite os 6 números que aparecem na TV.","e"); return }
+    msg("Vinculando..."); $("bVinc").disabled=true;
+    api("/vinc/ok",{token:st.token,c:c}).then(function(){ msg("Pronto! A TV entra na sua conta em alguns segundos. Pode voltar para ela.","o"); $("vc").value="" },
+      function(e){ if(e.st===401){ salva({}); desenha() } msg(e.message,"e") }).then(function(){ $("bVinc").disabled=false });
+  });
+  envia($("fSenha"),function(){ return api("/senha",{token:st.token,p:$("sa").value,n:$("sn").value}).then(function(r){ sessao({u:st.u,token:r.token}); $("sa").value=$("sn").value=""; msg("Senha alterada. Os outros aparelhos precisarão entrar de novo.","o") }) });
+  envia($("fEmail"),function(){ return api("/email",{token:st.token,e:$("ee").value.trim(),p:$("ez").value}).then(function(r){ $("ez").value=""; msg(r.email?"E-mail salvo.":"E-mail removido.","o"); desenha() }) });
+  $("bTodos").addEventListener("click",function(){ api("/sair-todos",{token:st.token}).then(function(){ salva({}); msg("Todos os aparelhos foram desconectados.","o"); desenha() },function(e){ msg(e.message,"e") }) });
+  envia($("fApagar"),function(){ if(!confirm("Apagar a conta e todos os dados? Isso não pode ser desfeito.")) return; return api("/apagar",{token:st.token,p:$("ap").value}).then(function(){ salva({}); $("ap").value=""; msg("Conta apagada.","o"); desenha() }) });
+  $("bSair").addEventListener("click",function(){ salva({}); msg("Você saiu neste navegador."); desenha() });
+
+  // configuração (endereço do servidor de contas) vem do mesmo lugar que o app usa
+  fetch("../v2/config.json?t="+Date.now(),{cache:"no-store"}).then(function(r){ return r.json() }).then(function(j){ cfg=j||{};
+    if(cfg.contato) $("pContato").innerHTML="Perdeu o código também? Fale com o suporte: <b></b>", $("pContato").querySelector("b").textContent=cfg.contato;
+    else $("pContato").textContent="Perdeu o código também? Fale com o suporte do Drekz pelo e-mail que você cadastrou.";
+    if(!cfg.sync){ var a=$("aviso"); a.textContent="O serviço de contas ainda não foi ativado."; a.classList.remove("hide") }
+  }).catch(function(){ var a=$("aviso"); a.textContent="Não foi possível carregar a configuração. Verifique sua conexão."; a.classList.remove("hide") }).then(desenha);
+  if(cod && !st.token) msg("Entre ou crie sua conta para vincular a TV.");
+})();
+</script>
+</body>
+</html>
