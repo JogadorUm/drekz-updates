@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.6";
+  var VER = "2.1.7";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -3422,7 +3422,7 @@
         const l = [...m.querySelectorAll(".f")];
         focus(l[Math.max(0, i)]);
       };
-      m.append(
+      m.append(...[
         h("h1", null, "Ajustes"),
         lin("Buffer ao vivo", "Maior = menos travadas, mas demora mais para abrir o canal", L[p().buffer], () => {
           const o = ["normal", "grande", "maximo"];
@@ -3447,7 +3447,7 @@
         lin("Verificar atualiza\xE7\xE3o", "Procura uma vers\xE3o nova do Drekz TV 2", "", () => verificar(true)),
         window.__DREKZ ? lin("Voltar ao Drekz TV anterior (0.7.x)", "Desinstala o n\xFAcleo novo e volta ao app antigo embutido", "", () => voltarAntigo()) : null,
         h("div", { class: "vazio" }, "Drekz TV " + VERSAO)
-      );
+      ].filter(Boolean));
       focus(m.querySelector(".f"));
     }
   };

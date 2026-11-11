@@ -1,1 +1,1 @@
-{"build": 114, "versao": "2.1.6", "notas": "A opção Conta só aparece nos Ajustes quando o serviço de contas estiver ativo", "arquivo": "drekz2.js", "tamanho": 138384}
+{"build": 115, "versao": "2.1.7", "notas": "Corrige o texto null que aparecia nos Ajustes", "arquivo": "drekz2.js", "tamanho": 138405}
