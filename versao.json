@@ -1,1 +1,1 @@
-{"build": 10, "versao": "0.7.2", "notas": "Ajustes internos", "arquivo": "drekz-tv.js", "tamanho": 784553, "v2": {"build": 113, "versao": "2.1.5", "notas": "Conta opcional para sincronizar favoritos e continuar assistindo (QR code na TV)", "arquivo": "drekz2.js", "tamanho": 138195}}
+{"build": 10, "versao": "0.7.2", "notas": "Ajustes internos", "arquivo": "drekz-tv.js", "tamanho": 784553, "v2": {"build": 114, "versao": "2.1.6", "notas": "A opção Conta só aparece nos Ajustes quando o serviço de contas estiver ativo", "arquivo": "drekz2.js", "tamanho": 138384}}

@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.5";
+  var VER = "2.1.6";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -2899,6 +2899,7 @@
     const c = conta();
     return c.token ? c.u : "Entrar";
   };
+  var contaAtiva = () => !!conta().token || !!cache.get("conta_ativa", false);
   var cfgJ = null;
   var cfgT = 0;
   async function cfg2() {
@@ -2915,6 +2916,7 @@
       cfgJ = cfgJ || {};
     }
     cfgT = Date.now();
+    cache.set("conta_ativa", !!(cfgJ && cfgJ.sync));
     return cfgJ;
   }
   var baseSite = () => window.__DREKZ && window.__DREKZ.base || "https://jogadorum.github.io/drekz-updates/";
@@ -2972,6 +2974,7 @@
     }
   }
   function iniciaConta() {
+    setTimeout(() => cfg2(), 3e3);
     setTimeout(() => sincroniza(false), 6e3);
     setInterval(() => sincroniza(false), 24e4);
     let t = 0;
@@ -3435,7 +3438,7 @@
           recarregar && recarregar();
           toast("Recarregando...", 1500);
         }),
-        lin("Conta", 'Entre para sincronizar favoritos e "Continuar assistindo" entre TV, celular e outros aparelhos', contaEstado(), () => go("conta"), 1),
+        contaAtiva() ? lin("Conta", 'Entre para sincronizar favoritos e "Continuar assistindo" entre TV, celular e outros aparelhos', contaEstado(), () => go("conta"), 1) : null,
         lin("Conectar celular", "Usar o celular como controle, trocar canal pelo app e sincronizar epis\xF3dios", estado(), () => go("conectar"), 1),
         lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia s\xF3 dados t\xE9cnicos para eu corrigir problemas. Sem nome, IP ou o que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
           trk.set(!trk.ligado());
