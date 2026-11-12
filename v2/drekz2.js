@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.7";
+  var VER = "2.1.8";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -2976,7 +2976,7 @@
   function iniciaConta() {
     setTimeout(() => cfg2(), 3e3);
     setTimeout(() => sincroniza(false), 6e3);
-    setInterval(() => sincroniza(false), 24e4);
+    setInterval(() => sincroniza(false), 6e5);
     let t = 0;
     addEventListener("drekz-prog", () => {
       if (!conta().token) return;
