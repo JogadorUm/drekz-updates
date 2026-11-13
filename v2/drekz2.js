@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.3";
+  var VER = "2.2.4";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
