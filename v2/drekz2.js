@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.4";
+  var VER = "2.2.5";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -2358,8 +2358,15 @@
     redesenha();
     return S2.achados;
   }
-  async function autoPar() {
+  async function autoPar(dica) {
     for (let i = 0; i < 5 && !S2.ligado; i++) {
+      if (dica) {
+        const r = await sonda(dica, 2500);
+        if (r) {
+          conectar(r);
+          return;
+        }
+      }
       if (!S2.varrendo) {
         const L = await varrer(true), a = (L || []).find((x) => x.rec);
         if (a) {
@@ -2370,10 +2377,10 @@
       await new Promise((r) => setTimeout(r, 3e3));
     }
   }
-  addEventListener("drekz-conta-vinc", () => {
+  addEventListener("drekz-conta-vinc", (e) => {
     try {
-      autoPar();
-    } catch (e) {
+      autoPar(e && e.ip);
+    } catch (x) {
     }
   });
   function conectar(a) {
@@ -3114,7 +3121,9 @@
             salva2({ u: v.u, token: v.token, ult: 0 });
             toast("Conectado como " + v.u, 3500);
             try {
-              dispatchEvent(new Event("drekz-conta-vinc"));
+              const ev = new Event("drekz-conta-vinc");
+              ev.ip = v.ip || "";
+              dispatchEvent(ev);
             } catch (e) {
             }
             await sincroniza(true);
