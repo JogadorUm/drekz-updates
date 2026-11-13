@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.1";
+  var VER = "2.2.2";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1274,15 +1274,6 @@
     });
   }
   var gravaCore = (o) => idb((s) => s.put(o, "cur"));
-  async function voltarAntigo() {
-    try {
-      await idb((s) => s.delete("cur"));
-      localStorage.setItem("drekz_v2_no", "1");
-      localStorage.removeItem("drekz_boot");
-    } catch (e) {
-    }
-    location.reload();
-  }
   function iniciarUpd() {
     if (!D()) return;
     setTimeout(() => verificar(false), 8e3);
@@ -3485,7 +3476,6 @@
           if (trk.ligado()) envia();
         }),
         lin("Verificar atualiza\xE7\xE3o", "Procura uma vers\xE3o nova do Drekz TV 2", "", () => verificar(true)),
-        window.__DREKZ ? lin("Voltar ao Drekz TV anterior (0.7.x)", "Desinstala o n\xFAcleo novo e volta ao app antigo embutido", "", () => voltarAntigo()) : null,
         h("div", { class: "vazio" }, "Drekz TV " + VERSAO)
       ].filter(Boolean));
       focus(m.querySelector(".f"));
