@@ -1,1 +1,1 @@
-{"build": 10, "versao": "0.7.2", "notas": "Ajustes internos", "arquivo": "drekz-tv.js", "tamanho": 784553, "v2": {"build": 117, "versao": "2.2.0", "notas": "Volume (mais, menos e mudo) no modo controle do Connect", "arquivo": "drekz2.js", "tamanho": 139024}}
+{"build": 10, "versao": "0.7.2", "notas": "Ajustes internos", "arquivo": "drekz-tv.js", "tamanho": 784553, "v2": {"build": 118, "versao": "2.2.1", "notas": "Ao vincular a conta pelo celular, a TV ja conecta o celular como controle", "arquivo": "drekz2.js", "tamanho": 139571}}

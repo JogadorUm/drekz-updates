@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.0";
+  var VER = "2.2.1";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -2313,7 +2313,7 @@
       w.onmessage = (m) => {
         try {
           const d = JSON.parse(m.data);
-          d.t === "hello" && fim({ ip, id: d.id, nome: d.nome });
+          d.t === "hello" && fim({ ip, id: d.id, nome: d.nome, rec: d.rec });
         } catch (e) {
         }
       };
@@ -2367,6 +2367,24 @@
     redesenha();
     return S2.achados;
   }
+  async function autoPar() {
+    for (let i = 0; i < 5 && !S2.ligado; i++) {
+      if (!S2.varrendo) {
+        const L = await varrer(true), a = (L || []).find((x) => x.rec);
+        if (a) {
+          conectar(a);
+          return;
+        }
+      }
+      await new Promise((r) => setTimeout(r, 3e3));
+    }
+  }
+  addEventListener("drekz-conta-vinc", () => {
+    try {
+      autoPar();
+    } catch (e) {
+    }
+  });
   function conectar(a) {
     desconectar(true);
     const c = cfg(), tok = (c.par || {})[a.id] && c.par[a.id].tok || "";
@@ -3122,6 +3140,10 @@
           if (v.st === "ok") {
             salva2({ u: v.u, token: v.token, ult: 0 });
             toast("Conectado como " + v.u, 3500);
+            try {
+              dispatchEvent(new Event("drekz-conta-vinc"));
+            } catch (e) {
+            }
             await sincroniza(true);
             if (vivo) inicio();
             return;
