@@ -1,1 +1,1 @@
-{"build": 11, "versao": "0.7.3", "notas": "Libera a volta ao Drekz TV 2", "arquivo": "drekz-tv.js", "tamanho": 784560, "v2": {"build": 119, "versao": "2.2.2", "notas": "Removida a opcao de voltar ao Drekz TV anterior", "arquivo": "drekz2.js", "tamanho": 139178}}
+{"build": 11, "versao": "0.7.3", "notas": "Libera a volta ao Drekz TV 2", "arquivo": "drekz-tv.js", "tamanho": 784560, "v2": {"build": 120, "versao": "2.2.3", "notas": "Removida a sincronizacao de episodios pelo Connect; o progresso agora sincroniza pela conta", "arquivo": "drekz2.js", "tamanho": 138683}}

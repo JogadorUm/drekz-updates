@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.2";
+  var VER = "2.2.3";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -2463,9 +2463,7 @@
     else if (d.t === "text") texto(d.v);
     else if (d.t === "open") abrir(d.id);
     else if (d.t === "getstate") enviarTudo();
-    else if (d.t === "prog") {
-      d.ok && mescla(d.d);
-    } else if (d.t === "ponte") {
+    else if (d.t === "ponte") {
       window.__ponte = { ip: a.ip, porta: d.porta || 8766 };
       prefs.set({ ponteSempre: !!d.sempre });
     }
@@ -2548,20 +2546,6 @@
     it = it || f.find((x) => x.id === id);
     if (it && !ocupado() && window.__drekz) window.__drekz.go("detalhe", it);
   }
-  var raw = () => JSON.stringify(progress.all());
-  function enviarProg(f) {
-    const r = raw();
-    if (!f && r === S2.pr) return;
-    S2.pr = r;
-    env({ t: "prog", d: progress.all() });
-  }
-  function mescla(o) {
-    const n = progress.mergeIn(o);
-    if (n) {
-      S2.pr = raw();
-      toast("Epis\xF3dios sincronizados com o celular (" + n + ")", 3500);
-    }
-  }
   addEventListener("drekz-guia", () => {
     try {
       S2.ligado && enviarEstado();
@@ -2571,11 +2555,9 @@
   function enviarTudo() {
     S2.cn = -1;
     S2.dn = -1;
-    enviarProg(true);
     enviarEstado();
   }
   async function enviarEstado() {
-    enviarProg();
     const L = await canais();
     const lista = L.map((x) => {
       const a = agora(x.name);
@@ -3470,7 +3452,7 @@
           toast("Recarregando...", 1500);
         }),
         contaAtiva() ? lin("Conta", 'Entre para sincronizar favoritos e "Continuar assistindo" entre TV, celular e outros aparelhos', contaEstado(), () => go("conta"), 1) : null,
-        lin("Conectar celular", "Usar o celular como controle, trocar canal pelo app e sincronizar epis\xF3dios", estado(), () => go("conectar"), 1),
+        lin("Conectar celular", "Usar o celular como controle e trocar de canal pelo app", estado(), () => go("conectar"), 1),
         lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia s\xF3 dados t\xE9cnicos para eu corrigir problemas. Sem nome, IP ou o que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
           trk.set(!trk.ligado());
           if (trk.ligado()) envia();
