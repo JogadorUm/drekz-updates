@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.1.8";
+  var VER = "2.2.0";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -2449,6 +2449,7 @@
       msg("O celular recusou a conex\xE3o.");
       desconectar(true);
     } else if (d.t === "key") tecla(d.k);
+    else if (d.t === "vol") volume(d.v);
     else if (d.t === "chan") canal(d.id);
     else if (d.t === "text") texto(d.v);
     else if (d.t === "open") abrir(d.id);
@@ -2472,6 +2473,23 @@
     clearInterval(S2.iv);
     S2.iv = setInterval(enviarEstado, 3e3);
     redesenha();
+  }
+  function volume(v) {
+    let n = null;
+    try {
+      const tz = window.tizen && window.tizen.tvaudiocontrol;
+      if (tz) {
+        if (v === "up") tz.setVolumeUp();
+        else if (v === "down") tz.setVolumeDown();
+        else if (v === "mute") tz.setMute(!tz.isMute());
+        n = tz.isMute() ? 0 : tz.getVolume();
+      } else if (window.DrekzNative && window.DrekzNative.vol) {
+        n = +window.DrekzNative.vol(v);
+      }
+    } catch (e) {
+    }
+    if (n === 0) toast("Mudo", 1200);
+    else if (n !== null && n > 0) toast("Volume " + n, 1200);
   }
   function tecla(k) {
     if (k === "chup" || k === "chdn") {
@@ -3592,7 +3610,7 @@
       reabrir();
     });
     go("inicio", null, { push: false });
-    window.__drekz = { go, pl: initWatch.pl, tela: telaAtual };
+    window.__drekz = { go, pl: initWatch.pl, tela: telaAtual, vol: volume };
     sincNativo();
     iniciarConnect();
     try {
