@@ -1188,7 +1188,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.5";
+  var VER = "2.2.6";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1388,6 +1388,7 @@
   var url2 = null;
   var urlT = 0;
   var envT = 0;
+  var voando = false;
   var sessao = Date.now().toString(36);
   var cut = (s, n) => String(s == null ? "" : s).slice(0, n);
   function track(tipo, d) {
@@ -1446,8 +1447,16 @@
     return url2;
   }
   async function envia() {
-    if (trk.ligado() !== true || !fila.length || Date.now() - envT < 5e3) return;
+    if (voando || trk.ligado() !== true || !fila.length || Date.now() - envT < 5e3) return;
     envT = Date.now();
+    voando = true;
+    try {
+      await envia2();
+    } finally {
+      voando = false;
+    }
+  }
+  async function envia2() {
     const u = await endpoint();
     if (!u) return;
     const lote = fila.slice(0, 40);
@@ -1601,6 +1610,16 @@
             stallT = setTimeout(() => {
               if (S && S.tok === my && S.up && !S.restart) erroLive("Travou por mais de " + Math.round(lim / 1e3) + " s");
             }, lim);
+          } else if (S && S.kind === "vod" && S.vok && S.srcs.length > 1 && (S.vsw || 0) < 2) {
+            const my = S.tok;
+            stallT = setTimeout(() => {
+              if (S && S.kind === "vod" && S.tok === my && S.vok) {
+                S.vsw = (S.vsw || 0) + 1;
+                hostRep.marca(host2(S.srcs[S.si]), false);
+                toast("Fonte lenta. Trocando...", 2500);
+                abreVod((S.si + 1) % S.srcs.length, S.t, false);
+              }
+            }, 22e3);
           }
         } else if (bufT && S) {
           const ms = Date.now() - bufT;
@@ -1614,6 +1633,7 @@
             } else if (S.srcs) {
               o.fonte = S.si + 1;
               o.host = host2(S.srcs[S.si]);
+              if (ms > 1e4) hostRep.marca(o.host, false);
             }
             track("trava", o);
           }
@@ -1767,6 +1787,12 @@
     if (!manual && ult == null && vi === 0) {
       const u = fonteOk.get("c:" + ch.id), ix = ch.variants.findIndex((x) => x.url === u);
       if (ix > 0) vi = ix;
+      else if (n > 1) {
+        const nt = (x) => hostRep.nota(host2(ch.variants[x].url));
+        let b = 0;
+        for (let x = 1; x < n; x++) if (nt(x) < nt(b)) b = x;
+        if (nt(0) - nt(b) >= 0.25) vi = b;
+      }
     }
     const ord = manual ? [...Array(n).keys()].map((k) => (vi + k) % n) : ordena(ch, vi, ult);
     for (let k = 0; k < n; k++) {
@@ -1925,9 +1951,13 @@
     osd(true);
     $("#pl").classList.add("buf");
     const n = S.srcs.length, fk = "v:" + S.it.id + ":" + (S.s || 0) + ":" + (S.e || 0);
+    S.vok = false;
     if (!manual && i === 0) {
+      const nt = (x) => hostRep.nota(host2(S.srcs[x]));
+      let b = 0;
+      for (let x = 1; x < n; x++) if (nt(x) < nt(b) - 0.01) b = x;
       const ix = S.srcs.indexOf(fonteOk.get(fk));
-      if (ix > 0) i = ix;
+      i = ix > 0 && nt(ix) <= nt(b) + 0.15 ? ix : b;
     }
     for (let k = 0; k < n; k++) {
       const j = (i + k) % n, t0 = Date.now();
@@ -1935,6 +1965,8 @@
         await pl.open({ url: S.srcs[j], live: false, manual: !!manual, start });
         if (!S || my !== S.tok) return;
         S.si = j;
+        S.vok = true;
+        hostRep.marca(host2(S.srcs[j]), Date.now() - t0 < 9e3);
         fonteOk.set(fk, S.srcs[j]);
         track("vod_ok", { tipo: S.serie ? "serie" : "filme", fonte: j + 1, ms: Date.now() - t0, eng: pl.act === pl.nat ? "nativo" : "web", host: host2(S.srcs[j]) });
         $("#pl").classList.remove("buf");
@@ -1942,6 +1974,7 @@
         return;
       } catch (e) {
         if (!S || my !== S.tok || e.message === "cancelado") return;
+        hostRep.marca(host2(S.srcs[j]), false);
         track("vod_falha", { tipo: S.serie ? "serie" : "filme", fonte: j + 1, ms: Date.now() - t0, host: host2(S.srcs[j]), msg: e.message });
         if (manual) {
           toast("Essa fonte n\xE3o abriu.");
@@ -3613,7 +3646,7 @@
       reabrir();
     });
     go("inicio", null, { push: false });
-    window.__drekz = { go, pl: initWatch.pl, tela: telaAtual, vol: volume };
+    window.__drekz = { go, pl: initWatch.pl, tela: telaAtual, vol: volume, vod: abrirVod };
     sincNativo();
     iniciarConnect();
     try {
