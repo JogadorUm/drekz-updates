@@ -371,6 +371,57 @@
   };
   var cache = { get: rd, set: wr };
 
+  // src/mortos.js
+  var FONTE = "https://saimo-tv.pages.dev/fontes-desativadas.json";
+  var K = "drekz2_mortos";
+  var VAL = 36e5;
+  var hosts = /* @__PURE__ */ new Set();
+  var em = 0;
+  var voo = null;
+  try {
+    const s = JSON.parse(localStorage.getItem(K) || "null");
+    if (s && Array.isArray(s.h)) {
+      hosts = new Set(s.h);
+      em = +s.em || 0;
+    }
+  } catch (e) {
+  }
+  function desligado(u) {
+    if (!hosts.size) return false;
+    try {
+      return hosts.has(String(u).split("/")[2].split(":")[0].toLowerCase());
+    } catch (e) {
+      return false;
+    }
+  }
+  var peneira = (a) => hosts.size ? a.filter((u) => !desligado(u)) : a;
+  function atualiza() {
+    if (Date.now() - em < VAL) return Promise.resolve(false);
+    return voo || (voo = (async () => {
+      try {
+        const j = await get(FONTE, { text: false, timeout: 8e3, cache: "no-store" }), L = j && j.desativados;
+        if (!Array.isArray(L)) return false;
+        const n = new Set(L.filter((x) => typeof x === "string").map((x) => x.trim().toLowerCase()).filter(Boolean));
+        em = Date.now();
+        try {
+          localStorage.setItem(K, JSON.stringify({ h: [...n], em }));
+        } catch (e) {
+        }
+        const mudou = n.size !== hosts.size || [...n].some((x) => !hosts.has(x));
+        hosts = n;
+        return mudou;
+      } catch (e) {
+        return false;
+      } finally {
+        voo = null;
+      }
+    })());
+  }
+  function iniciaMortos() {
+    atualiza();
+    setInterval(atualiza, 18e5);
+  }
+
   // src/data.js
   var TMDB = "https://api.themoviedb.org/3";
   var KEY2 = "15d2ea6d0dc1d476efbca3eba2b9bbfb";
@@ -430,19 +481,37 @@
     out.forEach((x, i) => x.num = i + 1);
     return out;
   }
+  function vivos(L) {
+    let ch = false;
+    const o = [];
+    for (const c of L) {
+      const v = c.variants.filter((x) => peneira([x.url]).length);
+      if (!v.length) {
+        ch = true;
+        continue;
+      }
+      if (v.length === c.variants.length) o.push(c);
+      else {
+        ch = true;
+        o.push(__spreadProps(__spreadValues({}, c), { variants: v }));
+      }
+    }
+    return ch ? o : L;
+  }
   async function canais(force) {
-    if (mem.canais && !force) return mem.canais;
+    if (mem.canais && !force) return vivos(mem.canais);
     try {
       const t = await get(base("c") + "catalogo.txt");
       const r = parseCanais(t);
       if (r.length) {
         cache.set("canais", r);
         mem.canais = r;
-        return r;
+        return vivos(r);
       }
     } catch (e) {
     }
-    return mem.canais = cache.get("canais", []);
+    mem.canais = cache.get("canais", []);
+    return vivos(mem.canais);
   }
   function categorias(list) {
     const s = [];
@@ -542,9 +611,23 @@
     const L = (it.letra || it.title[0]).toUpperCase();
     return /[A-Z]/.test(L) ? L : "#";
   };
+  async function marcas() {
+    if (mem.marcas) return mem.marcas;
+    const m = {};
+    try {
+      const t = await txt(base("f") + "marcas.txt");
+      for (const l of t.split(/\r?\n/)) {
+        const c = l.split("	");
+        if (c.length >= 2 && c[0][0] !== "#") m[c[0].trim()] = c[1].trim().toLowerCase();
+      }
+    } catch (e) {
+    }
+    return mem.marcas = m;
+  }
+  var frente4k = (a, M2) => M2 ? [...a.filter((x) => M2[x.trim()] === "4k"), ...a.filter((x) => M2[x.trim()] !== "4k")] : a;
   async function fontesFilme(it) {
     if (it.sources && it.sources.length) return it.sources;
-    const [B, t] = await Promise.all([bases(), txt(base("f") + "filmes-" + letra(it) + ".txt")]);
+    const [B, t, M2] = await Promise.all([bases(), txt(base("f") + "filmes-" + letra(it) + ".txt"), marcas()]);
     for (const l of t.split(/\r?\n/)) {
       const c = l.split("	");
       if (c.length < 2) continue;
@@ -553,7 +636,7 @@
         const s = [];
         for (let i = 1; i < c.length; i++) {
           const f = c[i].trim(), e = f.indexOf("=");
-          if (e > 0) for (const m of f.slice(e + 1).split(",")) {
+          if (e > 0) for (const m of frente4k(f.slice(e + 1).split(","), M2)) {
             const u = url(m, B);
             u && s.push(u);
           }
@@ -575,7 +658,7 @@
         break;
       }
     }
-    const [B, t] = await Promise.all([bp, txt(base("f") + "series-" + L + "-" + k + ".txt")]);
+    const [B, t, M2] = await Promise.all([bp, txt(base("f") + "series-" + L + "-" + k + ".txt"), marcas()]);
     const map = /* @__PURE__ */ new Map();
     let on = false;
     for (const l of t.split(/\r?\n/)) {
@@ -587,7 +670,7 @@
       if (!on) continue;
       const c = l.split("	");
       if (c.length < 4) continue;
-      const s = parseInt(c[0]) || 1, e = parseInt(c[1]) || 1, src = c[3].split(",").map((x) => url(x, B)).filter(Boolean);
+      const s = parseInt(c[0]) || 1, e = parseInt(c[1]) || 1, src = frente4k(c[3].split(","), M2).map((x) => url(x, B)).filter(Boolean);
       if (!map.has(s)) map.set(s, /* @__PURE__ */ new Map());
       const m = map.get(s);
       m.has(e) ? m.get(e).sources.push(...src) : m.set(e, { n: e, title: "Epis\xF3dio " + e, sources: src });
@@ -654,7 +737,7 @@
     return out;
   }
   async function porProvedor(p, serie) {
-    const K2 = "prov_" + p.id + (serie ? "t" : "m"), c = cache.get(K2, null);
+    const K3 = "prov_" + p.id + (serie ? "t" : "m"), c = cache.get(K3, null);
     let ids;
     if (c && Date.now() - c.t < 432e5) ids = c.ids;
     else {
@@ -667,7 +750,7 @@
         }
       };
       ids = (await Promise.all([1, 2, 3, 4, 5, 6].map(get1))).flat();
-      if (ids.length) cache.set(K2, { t: Date.now(), ids });
+      if (ids.length) cache.set(K3, { t: Date.now(), ids });
     }
     const pos = new Map(ids.map((id, i) => [id, i])), f = await fichas();
     return f.filter((x) => x.serie === serie && x.tmdb && pos.has(x.tmdb)).sort((a, b) => pos.get(a.tmdb) - pos.get(b.tmdb));
@@ -1188,7 +1271,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.6";
+  var VER = "2.2.7";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1351,7 +1434,7 @@
   };
 
   // src/track.js
-  var K = "drekz2_trk";
+  var K2 = "drekz2_trk";
   var rd2 = (k, d) => {
     try {
       const v = localStorage.getItem(k);
@@ -1368,23 +1451,23 @@
   };
   var trk = {
     ligado() {
-      return rd2(K + "_on", null);
+      return rd2(K2 + "_on", null);
     },
     // null = ainda não perguntou
     set(v) {
-      wr2(K + "_on", !!v);
-      if (!v) wr2(K + "_q", []);
+      wr2(K2 + "_on", !!v);
+      if (!v) wr2(K2 + "_q", []);
     },
     id() {
-      let i = rd2(K + "_id", null);
+      let i = rd2(K2 + "_id", null);
       if (!i) {
         i = Array.from({ length: 10 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.random() * 31 | 0]).join("");
-        wr2(K + "_id", i);
+        wr2(K2 + "_id", i);
       }
       return i;
     }
   };
-  var fila = rd2(K + "_q", []);
+  var fila = rd2(K2 + "_q", []);
   var url2 = null;
   var urlT = 0;
   var envT = 0;
@@ -1397,7 +1480,7 @@
     if (d) for (const k in d) e[k] = typeof d[k] === "number" || typeof d[k] === "boolean" ? d[k] : cut(d[k], 200);
     fila.push(e);
     if (fila.length > 300) fila = fila.slice(-200);
-    wr2(K + "_q", fila);
+    wr2(K2 + "_q", fila);
     if (fila.length >= 15 || tipo === "js_erro") envia();
   }
   var host2 = (u) => {
@@ -1464,7 +1547,7 @@
       const r = await fetch(u, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ id: trk.id(), sessao, dev: aparelho(), ev: lote }) });
       if (r.ok) {
         fila = fila.slice(lote.length);
-        wr2(K + "_q", fila);
+        wr2(K2 + "_q", fila);
         if (fila.length) setTimeout(envia, 6e3);
       }
     } catch (e) {
@@ -1936,7 +2019,10 @@
     modal("Fontes", L);
   }
   async function abrirVod(it, ctx) {
-    S = { kind: "vod", it, serie: !!it.serie, srcs: ctx.srcs, si: 0, titulo: ctx.titulo, s: ctx.s, e: ctx.e, seasons: ctx.seasons, t: ctx.start || 0, d: 0, tok: 0, rt: 0 };
+    S = { kind: "vod", it, serie: !!it.serie, srcs: (() => {
+      const f = peneira(ctx.srcs);
+      return f.length ? f : ctx.srcs;
+    })(), si: 0, titulo: ctx.titulo, s: ctx.s, e: ctx.e, seasons: ctx.seasons, t: ctx.start || 0, d: 0, tok: 0, rt: 0 };
     root().classList.add("assistindo");
     monta();
     setScope(() => $("#pl"));
@@ -2192,7 +2278,7 @@
     b.set(u), b[n] = 128;
     const dv = new DataView(b.buffer);
     dv.setUint32(l - 4, n * 8 >>> 0), dv.setUint32(l - 8, Math.floor(n * 8 / 4294967296));
-    const K2 = [], H = [];
+    const K22 = [], H = [];
     let p = 2, c = 0;
     const fr = (x) => (x - Math.floor(x)) * 4294967296 | 0;
     for (; c < 64; p++) {
@@ -2201,7 +2287,7 @@
         pr = false;
         break;
       }
-      pr && (c < 8 && (H[c] = fr(Math.sqrt(p))), K2[c] = fr(Math.cbrt(p)), c++);
+      pr && (c < 8 && (H[c] = fr(Math.sqrt(p))), K22[c] = fr(Math.cbrt(p)), c++);
     }
     const W = new Int32Array(64), R = (x, k) => x >>> k | x << 32 - k;
     for (let o = 0; o < l; o += 64) {
@@ -2212,7 +2298,7 @@
       }
       let [a, b2, c2, d2, e, f, g, h2] = H;
       for (let i = 0; i < 64; i++) {
-        const t1 = h2 + (R(e, 6) ^ R(e, 11) ^ R(e, 25)) + (e & f ^ ~e & g) + K2[i] + W[i] | 0, t2 = (R(a, 2) ^ R(a, 13) ^ R(a, 22)) + (a & b2 ^ a & c2 ^ b2 & c2) | 0;
+        const t1 = h2 + (R(e, 6) ^ R(e, 11) ^ R(e, 25)) + (e & f ^ ~e & g) + K22[i] + W[i] | 0, t2 = (R(a, 2) ^ R(a, 13) ^ R(a, 22)) + (a & b2 ^ a & c2 ^ b2 & c2) | 0;
         h2 = g, g = f, f = e, e = d2 + t1 | 0, d2 = c2, c2 = b2, b2 = a, a = t1 + t2 | 0;
       }
       H[0] = H[0] + a | 0, H[1] = H[1] + b2 | 0, H[2] = H[2] + c2 | 0, H[3] = H[3] + d2 | 0, H[4] = H[4] + e | 0, H[5] = H[5] + f | 0, H[6] = H[6] + g | 0, H[7] = H[7] + h2 | 0;
@@ -3646,7 +3732,7 @@
       reabrir();
     });
     go("inicio", null, { push: false });
-    window.__drekz = { go, pl: initWatch.pl, tela: telaAtual, vol: volume, vod: abrirVod };
+    window.__drekz = { go, pl: initWatch.pl, tela: telaAtual, vol: volume, vod: abrirVod, ff: fontesFilme };
     sincNativo();
     iniciarConnect();
     try {
@@ -3657,6 +3743,7 @@
     iniciarTrack();
     iniciaGuia();
     iniciaConta();
+    iniciaMortos();
     if (trk.ligado() === null) setTimeout(() => modal("Ajude a melhorar o Drekz TV", [
       { t: "Permitir relat\xF3rios de erro", s: "Envia s\xF3 dados t\xE9cnicos (modelo da TV, vers\xE3o, erros de canal). Sem nome, sem IP e sem o que voc\xEA assiste. D\xE1 para desligar em Ajustes.", fn: () => {
         trk.set(true);
