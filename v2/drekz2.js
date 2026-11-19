@@ -849,8 +849,8 @@
   var host = (u) => String(u).split("/")[2] || "?";
   var BUF = { normal: [4, 8], grande: [8, 14], maximo: [15, 25] };
   var AvEngine = class {
-    constructor(ev) {
-      this.ev = ev;
+    constructor(ev2) {
+      this.ev = ev2;
       this.tk = 0;
       this.ok = false;
       if (!document.getElementById("av-player")) {
@@ -987,8 +987,8 @@
     }
   };
   var ExoEngine = class {
-    constructor(ev) {
-      this.ev = ev;
+    constructor(ev2) {
+      this.ev = ev2;
       this.tk = 0;
       this.cb = null;
       this.r = [0, 0, 1920, 1080];
@@ -1001,16 +1001,16 @@
       window.__exoEv = (t, a, b) => this.nat(t, a, b);
     }
     nat(t, a, b) {
-      const ev = this.ev;
+      const ev2 = this.ev;
       if (t === "ready") this.cb && this.cb.ready();
       else if (t === "err") {
-        this.cb ? this.cb.err(String(a)) : this.live && ev.err && ev.err("Erro nativo: " + a);
+        this.cb ? this.cb.err(String(a)) : this.live && ev2.err && ev2.err("Erro nativo: " + a);
       } else if (t === "time") {
         this.pos = +a || 0;
         this.dur = +b || 0;
-        ev.time && ev.time(this.pos, this.dur);
-      } else if (t === "buf") ev.buf && ev.buf(!!+a);
-      else if (t === "end") ev.end && ev.end();
+        ev2.time && ev2.time(this.pos, this.dur);
+      } else if (t === "buf") ev2.buf && ev2.buf(!!+a);
+      else if (t === "end") ev2.end && ev2.end();
     }
     async open(s) {
       const E = plat.exo;
@@ -1094,9 +1094,9 @@
     }));
   }
   var HtmlEngine = class {
-    constructor(v, ev) {
+    constructor(v, ev2) {
       this.v = v;
-      this.ev = ev;
+      this.ev = ev2;
       this.tk = 0;
       this.hls = null;
       this.ok = false;
@@ -1189,8 +1189,8 @@
     }
   };
   var Player = class {
-    constructor(video, ev) {
-      this.ev = ev || {};
+    constructor(video, ev2) {
+      this.ev = ev2 || {};
       this.v = video;
       this.nat = plat.exo ? new ExoEngine(this.proxy()) : plat.avplay ? new AvEngine(this.proxy()) : null;
       this.web = new HtmlEngine(video, this.proxy());
@@ -1283,7 +1283,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.12";
+  var VER = "2.2.13";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1431,15 +1431,15 @@
       } }
     );
   }
-  window.__apkEv = function(ev, d) {
-    if (ev === "prog") toast("Baixando atualiza\xE7\xE3o... " + d + "%", 4e3);
-    else if (ev === "ok") {
+  window.__apkEv = function(ev2, d) {
+    if (ev2 === "prog") toast("Baixando atualiza\xE7\xE3o... " + d + "%", 4e3);
+    else if (ev2 === "ok") {
       apkEst = "pronto";
       toast("Baixada. Confirme a instala\xE7\xE3o no Android.", 6e3);
-    } else if (ev === "perm") {
+    } else if (ev2 === "perm") {
       apkEst = "pronto";
       toast('Ative "Permitir desta fonte", volte ao app e escolha Instalar agora.', 9e3);
-    } else if (ev === "erro") {
+    } else if (ev2 === "erro") {
       apkEst = apkNovo ? "novo" : "idle";
       toast("Falha ao baixar: " + d, 6e3);
     }
@@ -1858,11 +1858,13 @@
     if (p.abrAuto && m && m.a != null && !S.abrOk && S.t >= m.a - 1 && S.t < m.a + 25) {
       S.abrOk = true;
       toast("Abertura pulada", 2200);
+      ev("abr_auto", { ini: m.a, dur: m.l || 85 });
       pl.seek(m.a + (m.l || 85));
       return;
     }
     if (p.proximoAuto && S.d > 900 && !S.credOk && proxEp(1) && S.t > S.d / 2 && S.d - S.t <= (m && m.c || 45) + 5) {
       S.credOk = true;
+      ev("cred_auto", { falta: m && m.c || 45 });
       contagem();
     }
   }
@@ -1870,7 +1872,7 @@
     cancelaCont();
     const mine = S;
     let n = 5;
-    const el = h("div", { class: "prox", onclick: () => cancelaCont() });
+    const el = h("div", { class: "prox", onclick: () => cancelaCont(true) });
     $("#pl").append(el);
     mine.cd = { el };
     const pinta = () => {
@@ -1891,22 +1893,29 @@
       pinta();
     }, 1e3);
   }
-  function cancelaCont() {
+  function cancelaCont(cancelou) {
     if (S && S.cd) {
+      if (cancelou) ev("cred_cancel", { falta: Math.round(S.d - S.t) });
       clearInterval(S.cd.iv);
       S.cd.el.remove();
       S.cd = null;
     }
   }
+  var ev = (k, o) => track(k, __spreadValues({ serie: S.it.id, ep: "T" + S.s + "E" + S.e, total: Math.round(S.d) }, o));
   var aprendeAb = () => {
     if (S.serie && S.t < 240) {
-      marcas.set(S.it.id, { a: Math.max(0, Math.round(S.t)), l: 85 });
+      const a = Math.max(0, Math.round(S.t));
+      marcas.set(S.it.id, { a, l: 85 });
+      ev("marca_abr", { ini: a, dur: 85 });
     }
   };
   var aprendeCred = () => {
     if (S.serie && S.d > 900) {
       const r = S.d - S.t;
-      if (r >= 15 && r <= 240) marcas.set(S.it.id, { c: Math.round(r) });
+      if (r >= 15 && r <= 240) {
+        marcas.set(S.it.id, { c: Math.round(r) });
+        ev("marca_cred", { falta: Math.round(r) });
+      }
     }
   };
   function toggle() {
@@ -2239,7 +2248,7 @@
   function playerKey(e) {
     if (!S) return false;
     if (S.cd) {
-      cancelaCont();
+      cancelaCont(true);
       return true;
     }
     if (S.kind === "live" && !$("#gv").classList.contains("on2") && document.getElementById("modal").style.display !== "flex") {
@@ -2714,13 +2723,13 @@
     fake(n);
   }
   function fake(n) {
-    const ev = new KeyboardEvent("keydown", { bubbles: true, cancelable: true });
+    const ev2 = new KeyboardEvent("keydown", { bubbles: true, cancelable: true });
     try {
-      Object.defineProperty(ev, "keyCode", { get: () => n });
-      Object.defineProperty(ev, "which", { get: () => n });
+      Object.defineProperty(ev2, "keyCode", { get: () => n });
+      Object.defineProperty(ev2, "which", { get: () => n });
     } catch (e) {
     }
-    (document.activeElement || document.body).dispatchEvent(ev);
+    (document.activeElement || document.body).dispatchEvent(ev2);
   }
   async function canal(id) {
     const L = await canais(), c = L.find((x) => String(x.id) === String(id));
@@ -2826,9 +2835,9 @@
         return;
       }
       S2.rv = es;
-      es.onmessage = (ev) => {
+      es.onmessage = (ev2) => {
         try {
-          const m = JSON.parse(ev.data);
+          const m = JSON.parse(ev2.data);
           if (m.event !== "message" || vistos.has(m.id)) return;
           vistos.add(m.id);
           rvMsg(JSON.parse(m.message));
@@ -3319,9 +3328,9 @@
             salva2({ u: v.u, token: v.token, ult: 0 });
             toast("Conectado como " + v.u, 3500);
             try {
-              const ev = new Event("drekz-conta-vinc");
-              ev.ip = v.ip || "";
-              dispatchEvent(ev);
+              const ev2 = new Event("drekz-conta-vinc");
+              ev2.ip = v.ip || "";
+              dispatchEvent(ev2);
             } catch (e) {
             }
             await sincroniza(true);
@@ -3662,7 +3671,7 @@
         }),
         contaAtiva() ? lin("Conta", 'Entre para sincronizar favoritos e "Continuar assistindo" entre TV, celular e outros aparelhos', contaEstado(), () => go("conta"), 1) : null,
         window.__DREKZ ? lin("Conectar celular", "Usar o celular como controle e trocar de canal pelo app", estado(), () => go("conectar"), 1) : null,
-        lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia s\xF3 dados t\xE9cnicos para eu corrigir problemas. Sem nome, IP ou o que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
+        lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia dados t\xE9cnicos para eu corrigir problemas e os pontos de abertura/cr\xE9ditos que voc\xEA marca nas s\xE9ries. Sem nome, IP ou hist\xF3rico do que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
           trk.set(!trk.ligado());
           if (trk.ligado()) envia();
         }),
@@ -3845,7 +3854,7 @@
       });
     }
     if (trk.ligado() === null) setTimeout(() => modal("Ajude a melhorar o Drekz TV", [
-      { t: "Permitir relat\xF3rios de erro", s: "Envia s\xF3 dados t\xE9cnicos (modelo da TV, vers\xE3o, erros de canal). Sem nome, sem IP e sem o que voc\xEA assiste. D\xE1 para desligar em Ajustes.", fn: () => {
+      { t: "Permitir relat\xF3rios de erro", s: "Envia s\xF3 dados t\xE9cnicos (modelo da TV, vers\xE3o, erros de canal) e, quando voc\xEA pula abertura ou cr\xE9ditos de uma s\xE9rie, o ponto em que pulou. Sem nome, sem IP e sem hist\xF3rico do que voc\xEA assiste. D\xE1 para desligar em Ajustes.", fn: () => {
         trk.set(true);
       } },
       { t: "N\xE3o permitir", s: "O app funciona igual, nada \xE9 enviado.", fn: () => {
