@@ -1272,7 +1272,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.8";
+  var VER = "2.2.9";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -3586,7 +3586,7 @@
           trk.set(!trk.ligado());
           if (trk.ligado()) envia();
         }),
-        lin("Verificar atualiza\xE7\xE3o", "Procura uma vers\xE3o nova do Drekz TV 2", "", () => verificar(true)),
+        window.__DREKZ ? lin("Verificar atualiza\xE7\xE3o", "Procura uma vers\xE3o nova do Drekz TV 2", "", () => verificar(true)) : lin("Atualiza\xE7\xE3o", "No navegador a vers\xE3o mais nova \xE9 carregada sozinha a cada abertura", "Autom\xE1tica", () => toast("Recarregue a p\xE1gina (F5) para pegar a vers\xE3o mais nova")),
         h("div", { class: "vazio" }, "Drekz TV " + VERSAO)
       ].filter(Boolean));
       focus(m.querySelector(".f"));
