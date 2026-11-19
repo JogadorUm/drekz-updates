@@ -1272,7 +1272,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.9";
+  var VER = "2.2.10";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
