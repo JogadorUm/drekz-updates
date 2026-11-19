@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0d12">
+<title>Drekz TV</title>
+<link rel="icon" href="favicon.png">
+<style>html,body{margin:0;height:100%;background:#0b0d12;overflow:hidden}
+#carregando{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#8a93a6;font:16px system-ui,sans-serif}</style>
+</head>
+<body>
+<div id="carregando">Carregando o Drekz TV…</div>
+<div id="app">
+  <video id="tv-video" class="tv-video-container" playsinline></video>
+  <div id="tv-screens-container"></div>
+</div>
+<script>
+// Carrega sempre o núcleo mais novo publicado (o mesmo que atualiza a TV e a Box). Atalhos: setas/Enter/Esc, F = tela cheia.
+(function(){var s=document.createElement("script");s.src="../v2/drekz2.js?t="+Math.floor(Date.now()/300000);
+s.onload=function(){var c=document.getElementById("carregando");c&&c.remove()};
+s.onerror=function(){var c=document.getElementById("carregando");if(c)c.textContent="Não consegui carregar o Drekz TV. Verifique a internet e recarregue."};
+document.body.appendChild(s)})();
+</script>
+</body>
+</html>
