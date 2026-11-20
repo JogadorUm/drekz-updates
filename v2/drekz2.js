@@ -1283,7 +1283,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.13";
+  var VER = "2.2.14";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1855,17 +1855,67 @@
   }
   function auto() {
     const m = marcas.get(S.it.id), p = prefs.get();
-    if (p.abrAuto && m && m.a != null && !S.abrOk && S.t >= m.a - 1 && S.t < m.a + 25) {
+    if (!S.abrOk && m && m.a != null && S.t >= m.a - 1 && S.t < m.a + 25) {
       S.abrOk = true;
-      toast("Abertura pulada", 2200);
-      ev("abr_auto", { ini: m.a, dur: m.l || 85 });
-      pl.seek(m.a + (m.l || 85));
+      ofertaAb(p.abrAuto, m);
+      return;
+    }
+    if (!S.abrOk && (!m || m.a == null) && S.t >= 3 && S.t < 20) {
+      S.abrOk = true;
+      ofertaAb(false, null);
       return;
     }
     if (p.proximoAuto && S.d > 900 && !S.credOk && proxEp(1) && S.t > S.d / 2 && S.d - S.t <= (m && m.c || 45) + 5) {
       S.credOk = true;
       ev("cred_auto", { falta: m && m.c || 45 });
       contagem();
+    }
+  }
+  function ofertaAb(auto3, m) {
+    cancelaAb();
+    const mine = S;
+    let n = 5, k = 0;
+    const el = h("div", { class: "prox pab", onclick: () => pulaAb() });
+    $("#pl").append(el);
+    mine.ab = { el, m, auto: auto3 };
+    const pinta = () => {
+      el.textContent = "Pular abertura \u23ED" + (auto3 ? " em " + n + " s" : "") + "  \xB7  OK pula agora" + (auto3 ? "  \xB7  Voltar cancela" : "");
+    };
+    pinta();
+    mine.ab.iv = setInterval(() => {
+      if (S !== mine || !mine.ab) {
+        clearInterval(mine.ab && mine.ab.iv);
+        el.remove();
+        return;
+      }
+      if (auto3) {
+        if (--n <= 0) {
+          pulaAb();
+          return;
+        }
+        pinta();
+      } else if (++k >= 10) cancelaAb();
+    }, 1e3);
+  }
+  function cancelaAb(cancelou) {
+    if (S && S.ab) {
+      if (cancelou && S.ab.auto) ev("abr_cancel", { ini: Math.round(S.t) });
+      clearInterval(S.ab.iv);
+      S.ab.el.remove();
+      S.ab = null;
+    }
+  }
+  function pulaAb() {
+    if (!S || !S.ab) return;
+    const m = S.ab.m;
+    cancelaAb();
+    if (m && m.a != null) {
+      toast("Abertura pulada", 2200);
+      ev("abr_auto", { ini: m.a, dur: m.l || 85 });
+      pl.seek(Math.max(S.t, m.a + (m.l || 85)));
+    } else {
+      aprendeAb();
+      pl.seek(S.t + 85);
     }
   }
   function contagem() {
@@ -2250,6 +2300,16 @@
     if (S.cd) {
       cancelaCont(true);
       return true;
+    }
+    if (S.ab) {
+      if (is(e, "ENTER")) {
+        pulaAb();
+        return true;
+      }
+      if (is(e, "BACK")) {
+        cancelaAb(true);
+        return true;
+      }
     }
     if (S.kind === "live" && !$("#gv").classList.contains("on2") && document.getElementById("modal").style.display !== "flex") {
       const k = e.keyCode, d = k >= 48 && k <= 57 ? k - 48 : k >= 96 && k <= 105 ? k - 96 : -1;
