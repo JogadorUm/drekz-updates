@@ -1284,7 +1284,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.17";
+  var VER = "2.2.18";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
