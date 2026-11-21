@@ -1284,7 +1284,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.16";
+  var VER = "2.2.17";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -3822,13 +3822,13 @@
 
   // src/splash.js
   var D2 = "M123 87H255C350 87 420 150 420 256C420 362 350 425 255 425H123Z M215 185L337 256L215 327Z";
-  var CSS = "#d2sp{position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#0b0d12;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .4s ease}#d2sp.out{opacity:0}#d2sp .in{position:relative;display:flex;flex-direction:column;align-items:center}#d2sp .gl{position:absolute;left:50%;top:0;width:46vmin;height:46vmin;margin:-6vmin 0 0 -23vmin;border-radius:50%;background:radial-gradient(circle,rgba(110,120,255,.55),rgba(110,120,255,0) 70%);opacity:0;animation:d2g 2.2s ease-out forwards}#d2sp svg{position:relative;width:26vmin;height:26vmin;opacity:0;animation:d2m .7s ease-out forwards}#d2sp .sw{animation:d2w .8s ease-in-out .9s both}#d2sp .wd{display:flex;margin-top:3vmin;font-family:Inter,'Segoe UI',Roboto,Arial,sans-serif;font-weight:800;font-size:8vmin;letter-spacing:.1vmin;color:#fff}#d2sp .wd span{display:inline-block;opacity:0;animation:d2l .5s ease-out forwards}#d2sp .wd .s{width:2.4vmin}@keyframes d2m{0%{opacity:0;transform:scale(.6)}70%{opacity:1;transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}@keyframes d2l{0%{opacity:0;transform:translateY(3vmin)}100%{opacity:1;transform:translateY(0)}}@keyframes d2g{0%{opacity:0;transform:scale(.5)}35%{opacity:1;transform:scale(1)}100%{opacity:.5;transform:scale(1)}}@keyframes d2w{0%{transform:translateX(-200px)}100%{transform:translateX(620px)}}";
+  var CSS = "#d2sp{position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#0b0d12;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .4s ease}#d2sp.out{opacity:0}#d2sp .in{position:relative;display:flex;flex-direction:column;align-items:center}#d2sp .gl{position:absolute;left:50%;top:0;width:46vmin;height:46vmin;margin:-6vmin 0 0 -23vmin;border-radius:50%;background:radial-gradient(circle,rgba(110,120,255,.55),rgba(110,120,255,0) 70%);opacity:0;animation:d2g 3.3s ease-out forwards}#d2sp svg{position:relative;width:26vmin;height:26vmin;opacity:0;animation:d2m 1s ease-out forwards}#d2sp .sw{animation:d2w 1.1s ease-in-out 1.5s both}#d2sp .wd{display:flex;margin-top:3vmin;font-family:Inter,'Segoe UI',Roboto,Arial,sans-serif;font-weight:800;font-size:8vmin;letter-spacing:.1vmin;color:#fff}#d2sp .wd span{display:inline-block;opacity:0;animation:d2l .75s ease-out forwards}#d2sp .wd .s{width:2.4vmin}@keyframes d2m{0%{opacity:0;transform:scale(.6)}70%{opacity:1;transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}@keyframes d2l{0%{opacity:0;transform:translateY(3vmin)}100%{opacity:1;transform:translateY(0)}}@keyframes d2g{0%{opacity:0;transform:scale(.5)}35%{opacity:1;transform:scale(1)}100%{opacity:.5;transform:scale(1)}}@keyframes d2w{0%{transform:translateX(-200px)}100%{transform:translateX(620px)}}";
   function splash() {
     if (prefs.get().splash === false || document.getElementById("d2sp")) return;
     const st = document.createElement("style");
     st.textContent = CSS;
     document.head.appendChild(st);
-    const L = "Drekz TV".split("").map((c, i) => c === " " ? '<span class="s"></span>' : '<span style="animation-delay:' + (0.3 + i * 0.07).toFixed(2) + 's">' + c + "</span>").join("");
+    const L = "Drekz TV".split("").map((c, i) => c === " " ? '<span class="s"></span>' : '<span style="animation-delay:' + (0.45 + i * 0.1).toFixed(2) + 's">' + c + "</span>").join("");
     const el = document.createElement("div");
     el.id = "d2sp";
     el.innerHTML = '<div class="in"><div class="gl"></div><svg viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="d2gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00e5ff"/><stop offset="1" stop-color="#8b6cff"/></linearGradient><linearGradient id="d2sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="d2cp"><path clip-rule="evenodd" d="' + D2 + '"/></clipPath></defs><path fill-rule="evenodd" fill="url(#d2gr)" d="' + D2 + '"/><g clip-path="url(#d2cp)"><rect class="sw" x="0" y="60" width="90" height="400" fill="url(#d2sh)" transform="skewX(-20)"/></g></svg><div class="wd">' + L + "</div></div>";
@@ -3854,7 +3854,7 @@
     document.addEventListener("keydown", tecla2, true);
     el.addEventListener("click", sai);
     el.addEventListener("touchstart", sai);
-    setTimeout(sai, 2300);
+    setTimeout(sai, 3500);
   }
 
   // src/style.css
