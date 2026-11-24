@@ -435,21 +435,83 @@
   }
 
   // src/listas.js
-  var K2 = "drekz2_listas";
+  var K2 = "drekz2_listas2";
+  var mapa = () => {
+    try {
+      const o = JSON.parse(localStorage.getItem(K2) || "null");
+      if (o && typeof o === "object") return o;
+      const v = JSON.parse(localStorage.getItem("drekz2_listas") || "[]"), m = {};
+      (Array.isArray(v) ? v : []).forEach((x) => {
+        if (x && x.id && x.url) m[x.id] = { t: 1, on: 1, url: x.url, nome: x.nome || "" };
+      });
+      return m;
+    } catch (e) {
+      return {};
+    }
+  };
+  var grava = (m) => {
+    try {
+      localStorage.setItem(K2, JSON.stringify(m));
+    } catch (e) {
+    }
+  };
   var lista = () => {
+    const m = mapa();
+    return Object.keys(m).filter((k) => m[k].on).map((k) => ({ id: k, url: m[k].url, nome: m[k].nome }));
+  };
+  var listasMapa = mapa;
+  function listasMerge(r) {
+    const m = mapa();
+    let n = 0;
+    for (const k in r || {}) {
+      const x = r[k];
+      if (!x || typeof x.t !== "number" || !x.url) continue;
+      const c = m[k];
+      if (!c || x.t > c.t) {
+        m[k] = { t: x.t, on: x.on ? 1 : 0, url: x.url, nome: x.nome || "" };
+        n++;
+      }
+    }
+    if (n) grava(m);
+    return n;
+  }
+  var aviso = () => {
     try {
-      const a = JSON.parse(localStorage.getItem(K2) || "[]");
-      return Array.isArray(a) ? a : [];
+      window.dispatchEvent(new Event("drekz-prog"));
     } catch (e) {
-      return [];
     }
   };
-  var grava = (a) => {
-    try {
-      localStorage.setItem(K2, JSON.stringify(a));
-    } catch (e) {
+  var removeLista = (id) => {
+    const m = mapa();
+    if (m[id]) {
+      m[id] = __spreadProps(__spreadValues({}, m[id]), { t: Date.now(), on: 0 });
+      grava(m);
+      aviso();
     }
   };
+  async function adicionaLista(u) {
+    u = String(u || "").trim();
+    if (!/^https?:\/\/\S+$/i.test(u)) return { ok: false, msg: "Digite um endere\xE7o que comece com http:// ou https://" };
+    const id = hash(u), m = mapa();
+    if (m[id] && m[id].on) return { ok: false, msg: "Essa lista j\xE1 foi adicionada." };
+    let r;
+    try {
+      r = parseM3U(await get(u, { timeout: 15e3 }), "x");
+    } catch (e) {
+      return { ok: false, msg: "N\xE3o consegui abrir esse endere\xE7o (sem acesso, bloqueado ou fora do ar)." };
+    }
+    if (!r.length) return { ok: false, msg: "N\xE3o encontrei canais nesse endere\xE7o. Confira se \xE9 uma lista M3U." };
+    let nm = "";
+    try {
+      nm = u.split("/")[2] || "";
+    } catch (e) {
+    }
+    m[id] = { t: Date.now(), on: 1, url: u, nome: (nm || "Lista") + " (" + r.length + " canais)" };
+    grava(m);
+    recarregar();
+    aviso();
+    return { ok: true, n: r.length, msg: r.length + " canais adicionados em categorias com \u2605. Eles aparecem em TV ao vivo." };
+  }
   var hash = (s) => {
     let x = 5381;
     for (let i = 0; i < s.length; i++) x = (x * 33 ^ s.charCodeAt(i)) >>> 0;
@@ -506,11 +568,7 @@
       lista().forEach((it) => ls.append(h(
         "div",
         { class: "row f", onclick: () => {
-          grava(lista().filter((x) => x.id !== it.id));
-          try {
-            localStorage.removeItem("drekz2_c_ml_" + it.id);
-          } catch (e) {
-          }
+          removeLista(it.id);
           recarregar();
           toast("Lista removida", 2500);
           desenha();
@@ -521,40 +579,17 @@
       if (!lista().length) ls.append(h("div", { class: "vazio" }, "Nenhuma lista adicionada."));
     };
     const add = async () => {
-      const u = inp.value.trim();
-      if (!/^https?:\/\/\S+$/i.test(u)) {
-        st.textContent = "Digite um endere\xE7o que comece com http:// ou https://";
-        return;
-      }
-      if (lista().some((x) => x.url === u)) {
-        st.textContent = "Essa lista j\xE1 foi adicionada.";
-        return;
-      }
       st.textContent = "Conferindo a lista...";
-      try {
-        const t = await get(u, { timeout: 15e3 });
-        const r = parseM3U(t, "x");
-        if (!r.length) {
-          st.textContent = "N\xE3o encontrei canais nesse endere\xE7o. Confira se \xE9 uma lista M3U.";
-          return;
-        }
-        let nm = "Lista " + (lista().length + 1);
-        try {
-          nm = u.split("/")[2] || nm;
-        } catch (e) {
-        }
-        grava(lista().concat([{ id: hash(u), nome: nm + " (" + r.length + " canais)", url: u }]));
+      const r = await adicionaLista(inp.value);
+      st.textContent = r.msg;
+      if (r.ok) {
         inp.value = "";
-        st.textContent = r.length + " canais adicionados em categorias com \u2605. Eles aparecem em TV ao vivo.";
         desenha();
-        recarregar();
-      } catch (e) {
-        st.textContent = "N\xE3o consegui abrir esse endere\xE7o (sem acesso, bloqueado ou fora do ar).";
       }
     };
     m.append(
       h("h1", null, "Minhas listas (M3U)"),
-      h("div", { class: "vazio", style: "padding:0 8px 10px" }, "Adicione o endere\xE7o de uma lista M3U sua. Ela fica s\xF3 neste aparelho. O Drekz n\xE3o fornece nem hospeda esses canais: voc\xEA \xE9 respons\xE1vel pelo conte\xFAdo das listas que adicionar. Dica: no celular conectado d\xE1 para digitar o endere\xE7o pelo teclado."),
+      h("div", { class: "vazio", style: "padding:0 8px 10px" }, "Adicione o endere\xE7o de uma lista M3U sua. Ela fica salva na sua conta Drekz (se estiver conectada) para aparecer nos seus outros aparelhos. O Drekz n\xE3o fornece nem hospeda esses canais: voc\xEA \xE9 respons\xE1vel pelo conte\xFAdo das listas que adicionar. Dica: no celular conectado d\xE1 para digitar o endere\xE7o pelo teclado."),
       inp,
       btn2("Adicionar lista", add, 1),
       st,
@@ -1466,7 +1501,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.20";
+  var VER = "2.2.21";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1759,7 +1794,7 @@
   // src/guia.js
   var M = /* @__PURE__ */ new Map();
   var carregando = 0;
-  var aviso = 0;
+  var aviso2 = 0;
   try {
     const c = cache.get("guia", null);
     if (c && Date.now() - c.t < 6 * 36e5) for (const k in c.d) M.set(k, c.d[k]);
@@ -1788,9 +1823,9 @@
     return r.map((x, k) => ({ t: x.t, i: x.i, f: k + 1 < r.length ? r[k + 1].i : x.i + 36e5 })).filter((x) => x.f > n).slice(0, 10);
   }
   function avisa2() {
-    if (aviso) return;
-    aviso = setTimeout(() => {
-      aviso = 0;
+    if (aviso2) return;
+    aviso2 = setTimeout(() => {
+      aviso2 = 0;
       dispatchEvent(new Event("drekz-guia"));
     }, 800);
   }
@@ -2919,6 +2954,10 @@
     else if (d.t === "chan") canal(d.id);
     else if (d.t === "text") texto(d.v);
     else if (d.t === "open") abrir(d.id);
+    else if (d.t === "lista") adicionaLista(d.url).then((r) => {
+      toast(r.ok ? "Lista recebida do celular: " + r.n + " canais" : "Lista do celular: " + r.msg, 4500);
+      r.ok && window.dispatchEvent(new Event("drekz-prog"));
+    });
     else if (d.t === "getstate") enviarTudo();
     else if (d.t === "ponte") {
       window.__ponte = { ip: a.ip, porta: d.porta || 8766 };
@@ -3420,10 +3459,11 @@
     try {
       const prog = {}, p = progress.all();
       for (const k in p) if (/^[fs]_/.test(k) && p[k] && p[k].title) prog[k] = p[k];
-      const r = await api("/sync", { token: c.token, prog, fav: favs.mapa() });
-      const a = progress.mergeIn(r.prog), b = favs.mergeIn(r.fav);
+      const r = await api("/sync", { token: c.token, prog, fav: favs.mapa(), lst: listasMapa() });
+      const a = progress.mergeIn(r.prog), b = favs.mergeIn(r.fav), l = listasMerge(r.lst);
+      if (l) recarregar();
       salva2({ ult: Date.now() });
-      if (manual) toast(a || b ? "Sincronizado: dados de outros aparelhos chegaram." : "Tudo sincronizado.");
+      if (manual) toast(a || b || l ? "Sincronizado: dados de outros aparelhos chegaram." : "Tudo sincronizado.");
       try {
         dispatchEvent(new Event("drekz-conta"));
       } catch (e) {
@@ -3465,7 +3505,7 @@
     m.append(h("h1", null, "Conta"));
     const corpo = h("div"), msg2 = h("div", { class: "vazio", style: "padding:6px 8px 14px;min-height:34px" });
     m.append(msg2, corpo);
-    const aviso2 = (t) => {
+    const aviso3 = (t) => {
       msg2.textContent = t || "";
     };
     let parar = null;
@@ -3479,7 +3519,7 @@
     const foco = () => focus(corpo.querySelector("[data-first]") || corpo.querySelector(".f"));
     async function inicio() {
       limpa();
-      aviso2("");
+      aviso3("");
       const c = await cfg2();
       if (!c.sync) {
         corpo.append(h("div", { class: "vazio" }, "O servi\xE7o de contas ainda n\xE3o foi ativado nesta vers\xE3o do Drekz."));
@@ -3487,11 +3527,11 @@
       }
       const u = conta();
       if (u.token) {
-        aviso2("Conectado como " + u.u + (u.ult ? " \xB7 \xFAltima sincroniza\xE7\xE3o " + new Date(u.ult).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""));
+        aviso3("Conectado como " + u.u + (u.ult ? " \xB7 \xFAltima sincroniza\xE7\xE3o " + new Date(u.ult).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""));
         corpo.append(
           h("div", { class: "vazio", style: "max-width:900px" }, 'Seus favoritos e o "Continuar assistindo" s\xE3o sincronizados com os outros aparelhos que entrarem nesta conta.'),
           btn("Sincronizar agora", async () => {
-            aviso2("Sincronizando...");
+            aviso3("Sincronizando...");
             await sincroniza(true);
             inicio();
           }, 1),
@@ -3515,13 +3555,13 @@
     }
     async function qr() {
       limpa();
-      aviso2("Gerando c\xF3digo...");
+      aviso3("Gerando c\xF3digo...");
       const seg = aleat(24);
       let r;
       try {
         r = await api("/vinc/novo", { s: seg });
       } catch (e) {
-        aviso2(e.message);
+        aviso3(e.message);
         corpo.append(btn("Voltar", inicio));
         foco();
         return;
@@ -3534,7 +3574,7 @@
         cv = h("div", { class: "vazio" }, "N\xE3o foi poss\xEDvel desenhar o QR code.");
       }
       cv.style.cssText = "border-radius:14px;flex:none";
-      aviso2("");
+      aviso3("");
       corpo.append(
         h(
           "div",
@@ -3562,7 +3602,7 @@
       const volta = async () => {
         if (!vivo || !cv.isConnected) return;
         if (Date.now() - t0 > 3e5) {
-          aviso2("O c\xF3digo expirou.");
+          aviso3("O c\xF3digo expirou.");
           return;
         }
         try {
@@ -3581,7 +3621,7 @@
             return;
           }
           if (v.st === "expirou") {
-            aviso2("O c\xF3digo expirou.");
+            aviso3("O c\xF3digo expirou.");
             return;
           }
         } catch (e) {
@@ -3592,7 +3632,7 @@
     }
     function formulario(modo) {
       limpa();
-      aviso2("");
+      aviso3("");
       const campos = {
         entrar: [["u", "Usu\xE1rio", 0], ["p", "Senha", 1]],
         criar: [["u", "Usu\xE1rio (3 a 20: letras min\xFAsculas, n\xFAmeros . _ -)", 0], ["p", "Senha (m\xEDnimo 6)", 1], ["e", "E-mail de recupera\xE7\xE3o (opcional)", 0]],
@@ -3632,7 +3672,7 @@
       desenhaKb();
       const enviar = async () => {
         const v = (k) => ins[k] ? ins[k].value : "";
-        aviso2("Aguarde...");
+        aviso3("Aguarde...");
         try {
           if (modo === "entrar") {
             const r = await api("/entrar", { u: v("u").trim(), p: v("p") });
@@ -3657,7 +3697,7 @@
             inicio();
           }
         } catch (e) {
-          aviso2(e.message);
+          aviso3(e.message);
         }
       };
       const col = h("div", { style: "flex:none" });
@@ -3674,7 +3714,7 @@
     }
     function codigoRec(rec) {
       limpa();
-      aviso2("");
+      aviso3("");
       const g = String(rec).replace(/(.{4})(?=.)/g, "$1-");
       corpo.append(
         h("div", { style: "font-size:26px;max-width:900px;line-height:1.5" }, "Conta criada! Anote seu ", h("b", null, "c\xF3digo de recupera\xE7\xE3o"), ". Ele aparece s\xF3 desta vez e serve para criar uma senha nova se voc\xEA esquecer a atual."),
