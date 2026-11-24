@@ -434,6 +434,137 @@
     setInterval(atualiza, 18e5);
   }
 
+  // src/listas.js
+  var K2 = "drekz2_listas";
+  var lista = () => {
+    try {
+      const a = JSON.parse(localStorage.getItem(K2) || "[]");
+      return Array.isArray(a) ? a : [];
+    } catch (e) {
+      return [];
+    }
+  };
+  var grava = (a) => {
+    try {
+      localStorage.setItem(K2, JSON.stringify(a));
+    } catch (e) {
+    }
+  };
+  var hash = (s) => {
+    let x = 5381;
+    for (let i = 0; i < s.length; i++) x = (x * 33 ^ s.charCodeAt(i)) >>> 0;
+    return x.toString(36);
+  };
+  function parseM3U(t, id) {
+    const out = [];
+    let nome = "", logo = "", grupo = "", ref = "", ua = "", n = 0;
+    for (let l of String(t).split(/\r?\n/)) {
+      l = l.trim();
+      if (!l) continue;
+      if (l.startsWith("#EXTINF")) {
+        const i = l.lastIndexOf(",");
+        nome = i >= 0 ? l.slice(i + 1).trim() : "";
+        const g = /group-title="([^"]*)"/.exec(l), lg = /tvg-logo="([^"]*)"/.exec(l);
+        grupo = g ? g[1] : "";
+        logo = lg ? lg[1] : "";
+        ref = "";
+        ua = "";
+      } else if (/^#EXTVLCOPT:http-referrer=/i.test(l)) ref = l.split("=").slice(1).join("=");
+      else if (/^#EXTVLCOPT:http-user-agent=/i.test(l)) ua = l.split("=").slice(1).join("=");
+      else if (l[0] !== "#" && /^https?:\/\//i.test(l) && nome) {
+        const v = { url: l };
+        if (ref) v.referer = ref;
+        if (ua) v.userAgent = ua;
+        out.push({ id: "ml_" + id + "_" + n++, name: nome, cat: "\u2605 " + (grupo || "Minhas listas"), logo, variants: [v] });
+        nome = "";
+      }
+    }
+    return out;
+  }
+  async function carregaListas() {
+    const out = [];
+    for (const it of lista()) {
+      let r = null;
+      try {
+        const t = await get(it.url, { timeout: 15e3 });
+        r = parseM3U(t, it.id);
+        if (r.length) cache.set("ml_" + it.id, r);
+      } catch (e) {
+      }
+      if (!r || !r.length) r = cache.get("ml_" + it.id, []);
+      out.push(...r);
+    }
+    return out;
+  }
+  function telaListas(m) {
+    const st = h("div", { class: "vazio", style: "padding:6px 8px 14px" }, "");
+    const ls = h("div");
+    const inp = h("input", { class: "f cx-txt", type: "text", placeholder: "Endere\xE7o da lista (http://... .m3u)", autocomplete: "off", autocapitalize: "off", spellcheck: "false", "data-first": 1, style: "width:100%;max-width:900px;font-size:26px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin:10px 0" });
+    const btn2 = (t, fn, x) => h("div", { class: "btn f" + (x ? " pri" : ""), onclick: fn }, t);
+    const desenha = () => {
+      ls.innerHTML = "";
+      lista().forEach((it) => ls.append(h(
+        "div",
+        { class: "row f", onclick: () => {
+          grava(lista().filter((x) => x.id !== it.id));
+          try {
+            localStorage.removeItem("drekz2_c_ml_" + it.id);
+          } catch (e) {
+          }
+          recarregar();
+          toast("Lista removida", 2500);
+          desenha();
+        } },
+        h("div", null, it.nome, h("small", null, it.url)),
+        h("b", null, "Remover")
+      )));
+      if (!lista().length) ls.append(h("div", { class: "vazio" }, "Nenhuma lista adicionada."));
+    };
+    const add = async () => {
+      const u = inp.value.trim();
+      if (!/^https?:\/\/\S+$/i.test(u)) {
+        st.textContent = "Digite um endere\xE7o que comece com http:// ou https://";
+        return;
+      }
+      if (lista().some((x) => x.url === u)) {
+        st.textContent = "Essa lista j\xE1 foi adicionada.";
+        return;
+      }
+      st.textContent = "Conferindo a lista...";
+      try {
+        const t = await get(u, { timeout: 15e3 });
+        const r = parseM3U(t, "x");
+        if (!r.length) {
+          st.textContent = "N\xE3o encontrei canais nesse endere\xE7o. Confira se \xE9 uma lista M3U.";
+          return;
+        }
+        let nm = "Lista " + (lista().length + 1);
+        try {
+          nm = u.split("/")[2] || nm;
+        } catch (e) {
+        }
+        grava(lista().concat([{ id: hash(u), nome: nm + " (" + r.length + " canais)", url: u }]));
+        inp.value = "";
+        st.textContent = r.length + " canais adicionados em categorias com \u2605. Eles aparecem em TV ao vivo.";
+        desenha();
+        recarregar();
+      } catch (e) {
+        st.textContent = "N\xE3o consegui abrir esse endere\xE7o (sem acesso, bloqueado ou fora do ar).";
+      }
+    };
+    m.append(
+      h("h1", null, "Minhas listas (M3U)"),
+      h("div", { class: "vazio", style: "padding:0 8px 10px" }, "Adicione o endere\xE7o de uma lista M3U sua. Ela fica s\xF3 neste aparelho. O Drekz n\xE3o fornece nem hospeda esses canais: voc\xEA \xE9 respons\xE1vel pelo conte\xFAdo das listas que adicionar. Dica: no celular conectado d\xE1 para digitar o endere\xE7o pelo teclado."),
+      inp,
+      btn2("Adicionar lista", add, 1),
+      st,
+      ls,
+      btn2("Voltar", () => window.__drekz.go("ajustes"))
+    );
+    desenha();
+    focusFirst(m);
+  }
+
   // src/data.js
   var TMDB = "https://api.themoviedb.org/3";
   var KEY2 = "15d2ea6d0dc1d476efbca3eba2b9bbfb";
@@ -512,6 +643,7 @@
   }
   var chave = (n) => norm(n).replace(/ /g, "").replace(/(hd|fhd|sd)$/, "");
   function comExtras(L) {
+    if (mem.listas && mem.listas.length) L = L.concat(mem.listas.map((c, i) => __spreadProps(__spreadValues({}, c), { num: L.length + i + 1 })));
     if (prefs.get().extras === false || !mem.extras || !mem.extras.length) return L;
     const idx = {};
     const o = L.map((c) => {
@@ -555,7 +687,10 @@
   async function canais(force) {
     if (mem.canais && !force) return vivos(comExtras(mem.canais));
     if (force) mem.extras = null;
-    const ex = carregaExtras();
+    const ex = Promise.all([carregaExtras(), lista().length ? carregaListas().then((r) => {
+      mem.listas = r;
+    }).catch(() => {
+    }) : mem.listas = []]);
     try {
       const t = await get(base("c") + "catalogo.txt");
       const r = parseCanais(t);
@@ -795,7 +930,7 @@
     return out;
   }
   async function porProvedor(p, serie) {
-    const K3 = "prov_" + p.id + (serie ? "t" : "m"), c = cache.get(K3, null);
+    const K4 = "prov_" + p.id + (serie ? "t" : "m"), c = cache.get(K4, null);
     let ids;
     if (c && Date.now() - c.t < 432e5) ids = c.ids;
     else {
@@ -808,7 +943,7 @@
         }
       };
       ids = (await Promise.all([1, 2, 3, 4, 5, 6].map(get1))).flat();
-      if (ids.length) cache.set(K3, { t: Date.now(), ids });
+      if (ids.length) cache.set(K4, { t: Date.now(), ids });
     }
     const pos = new Map(ids.map((id, i) => [id, i])), f = await fichas();
     return f.filter((x) => x.serie === serie && x.tmdb && pos.has(x.tmdb)).sort((a, b) => pos.get(a.tmdb) - pos.get(b.tmdb));
@@ -1331,7 +1466,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.19";
+  var VER = "2.2.20";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1494,7 +1629,7 @@
   };
 
   // src/track.js
-  var K2 = "drekz2_trk";
+  var K3 = "drekz2_trk";
   var rd2 = (k, d) => {
     try {
       const v = localStorage.getItem(k);
@@ -1511,23 +1646,23 @@
   };
   var trk = {
     ligado() {
-      return rd2(K2 + "_on", null);
+      return rd2(K3 + "_on", null);
     },
     // null = ainda não perguntou
     set(v) {
-      wr2(K2 + "_on", !!v);
-      if (!v) wr2(K2 + "_q", []);
+      wr2(K3 + "_on", !!v);
+      if (!v) wr2(K3 + "_q", []);
     },
     id() {
-      let i = rd2(K2 + "_id", null);
+      let i = rd2(K3 + "_id", null);
       if (!i) {
         i = Array.from({ length: 10 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.random() * 31 | 0]).join("");
-        wr2(K2 + "_id", i);
+        wr2(K3 + "_id", i);
       }
       return i;
     }
   };
-  var fila = rd2(K2 + "_q", []);
+  var fila = rd2(K3 + "_q", []);
   var url2 = null;
   var urlT = 0;
   var envT = 0;
@@ -1540,7 +1675,7 @@
     if (d) for (const k in d) e[k] = typeof d[k] === "number" || typeof d[k] === "boolean" ? d[k] : cut(d[k], 200);
     fila.push(e);
     if (fila.length > 300) fila = fila.slice(-200);
-    wr2(K2 + "_q", fila);
+    wr2(K3 + "_q", fila);
     if (fila.length >= 15 || tipo === "js_erro") envia();
   }
   var host2 = (u) => {
@@ -1607,7 +1742,7 @@
       const r = await fetch(u, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ id: trk.id(), sessao, dev: aparelho(), ev: lote }) });
       if (r.ok) {
         fila = fila.slice(lote.length);
-        wr2(K2 + "_q", fila);
+        wr2(K3 + "_q", fila);
         if (fila.length) setTimeout(envia, 6e3);
       }
     } catch (e) {
@@ -1741,7 +1876,7 @@
         if (S.kind === "vod" && S.serie) auto();
         if (S.kind === "vod" && Date.now() - saveT > 8e3) {
           saveT = Date.now();
-          grava();
+          grava2();
         }
       },
       buf: (b) => {
@@ -2025,8 +2160,8 @@
       S.paused = true;
     }
   }
-  async function abrirLive(lista, idx) {
-    S = { kind: "live", lista, ch: lista[idx], vi: 0, rt: 0, okT: 0, tok: 0 };
+  async function abrirLive(lista2, idx) {
+    S = { kind: "live", lista: lista2, ch: lista2[idx], vi: 0, rt: 0, okT: 0, tok: 0 };
     root().classList.add("assistindo");
     monta();
     prefs.set({ ultimoCanal: S.ch.id });
@@ -2277,7 +2412,7 @@
       } else toast("O v\xEDdeo parou de carregar.");
     }
   }
-  function grava() {
+  function grava2() {
     if (!S || S.kind !== "vod" || !S.d) return;
     const it = S.it, done = S.d - S.t < 120;
     progress.set(it.id, { t: S.t, d: S.d, title: it.title, poster: it.poster, serie: it.serie, s: S.s, e: S.e, season: S.s, episode: S.e, done: done && !it.serie ? true : false, letra: it.letra, tmdb: it.tmdb });
@@ -2295,7 +2430,7 @@
       toast(d > 0 ? "Esse \xE9 o \xFAltimo epis\xF3dio." : "Esse \xE9 o primeiro epis\xF3dio.");
       return;
     }
-    grava();
+    grava2();
     const it = S.it, seasons = S.seasons;
     progress.set(it.id, { t: 0, d: 0, title: it.title, poster: it.poster, serie: true, s: n.s, e: n.ep.n, season: n.s, episode: n.ep.n, letra: it.letra, tmdb: it.tmdb });
     const off = S.off;
@@ -2309,14 +2444,14 @@
       toast("Pr\xF3ximo epis\xF3dio...", 1500);
       vaiEp(1);
     } else {
-      grava();
+      grava2();
       progress.set(S.it.id, { done: !S.serie, t: 0 });
       sair();
     }
   }
   function sair() {
     if (!S) return;
-    if (S.kind === "vod") grava();
+    if (S.kind === "vod") grava2();
     const off = S.off;
     S.tok++;
     clearTimeout(stallT);
@@ -2452,13 +2587,13 @@
   async function buscar(texto2) {
     const q = norm(texto2);
     if (q.length < 2) return [];
-    const lista = await fichas(), qt = q.split(" ");
-    let r = lista.map((it) => ({ it, s: score(q, qt, it) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.it);
+    const lista2 = await fichas(), qt = q.split(" ");
+    let r = lista2.map((it) => ({ it, s: score(q, qt, it) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.it);
     if (r.length < 6) {
       const ids = await tmdbBusca(texto2);
       const seen = new Set(r.map((x) => x.id));
       for (const x of ids) {
-        const f = lista.find((y) => y.tmdb === x.tmdb && y.serie === x.tv);
+        const f = lista2.find((y) => y.tmdb === x.tmdb && y.serie === x.tv);
         if (f && !seen.has(f.id)) {
           seen.add(f.id);
           r.push(f);
@@ -2849,13 +2984,13 @@
   function texto(v) {
     const go2 = window.__drekz && window.__drekz.go;
     const poe = () => {
-      const el = document.querySelector(".sb input");
+      const el = document.querySelector(".sb input, input.cx-txt");
       if (el) {
         el.value = v;
         el.dispatchEvent(new Event("input", { bubbles: true }));
       }
     };
-    if (document.querySelector(".sb input")) poe();
+    if (document.querySelector(".sb input, input.cx-txt")) poe();
     else if (!ocupado() && go2) {
       go2("busca", null);
       setTimeout(poe, 400);
@@ -2881,14 +3016,14 @@
   }
   async function enviarEstado() {
     const L = await canais();
-    const lista = L.map((x) => {
+    const lista2 = L.map((x) => {
       const a = agora(x.name);
       return { id: x.id, n: x.name, num: x.num, a: a ? a.cur.t : "" };
-    }), sg = lista.map((x) => x.a).join("|");
+    }), sg = lista2.map((x) => x.a).join("|");
     if (L.length !== S2.cn || sg !== S2.cs) {
       S2.cn = L.length;
       S2.cs = sg;
-      env({ t: "canais", lista });
+      env({ t: "canais", lista: lista2 });
     }
     try {
       const F = await destaques(), n = F.reduce((a, f) => a + f.itens.length, 0);
@@ -3617,9 +3752,9 @@
       const cats = ["Todos", ...favs.all().length ? ["\u2605 Favoritos"] : [], ...categorias(cs)];
       const cat = arg && arg.cat || "Todos";
       const chips = h("div", { class: "chips" }, cats.map((c) => h("div", { class: "chip f" + (c === cat ? " sel" : ""), onclick: () => go("tv", { cat: c }, { push: false }) }, c)));
-      const lista = cat === "Todos" ? cs : cat === "\u2605 Favoritos" ? cs.filter((c) => favs.has(c.id)) : cs.filter((c) => c.cat === cat);
-      m.append(chips, h("div", { class: "chs" }, lista.map((c) => chTile(c, lista))));
-      const ult = prefs.get().ultimoCanal, first = [...m.querySelectorAll(".ch")][lista.findIndex((c) => c.id === ult)];
+      const lista2 = cat === "Todos" ? cs : cat === "\u2605 Favoritos" ? cs.filter((c) => favs.has(c.id)) : cs.filter((c) => c.cat === cat);
+      m.append(chips, h("div", { class: "chs" }, lista2.map((c) => chTile(c, lista2))));
+      const ult = prefs.get().ultimoCanal, first = [...m.querySelectorAll(".ch")][lista2.findIndex((c) => c.id === ult)];
       focus(first || m.querySelector(".chip.sel"));
     },
     async filmes(m, arg) {
@@ -3710,6 +3845,9 @@
     conectar(m) {
       telaConectar(m);
     },
+    listas(m) {
+      telaListas(m);
+    },
     conta(m) {
       telaConta(m);
     },
@@ -3766,6 +3904,7 @@
           const o = ["normal", "grande", "maximo"];
           prefs.set({ buffer: o[(o.indexOf(p().buffer) + 1) % 3] });
         }),
+        lin("Minhas listas (M3U)", "Adicionar uma lista de canais sua (fica s\xF3 neste aparelho)", lista().length ? lista().length + " lista(s)" : "", () => go("listas"), 1),
         lin("Canais extras", 'Mais canais brasileiros (lista p\xFAblica iptv-org) como reserva e em "Mais canais". Se n\xE3o rodarem, desligue', p().extras !== false ? "Ligado" : "Desligado", () => {
           prefs.set({ extras: p().extras === false });
           recarregar && recarregar();
@@ -3794,10 +3933,10 @@
       focus(m.querySelector(".f"));
     }
   };
-  function chTile(c, lista) {
+  function chTile(c, lista2) {
     const t = h(
       "div",
-      { class: "ch f", "data-ch": c.name, onclick: () => abrirLive(lista, lista.indexOf(c)) },
+      { class: "ch f", "data-ch": c.name, onclick: () => abrirLive(lista2, lista2.indexOf(c)) },
       c.logo ? h("img", { src: c.logo, loading: "lazy", onerror: (e) => e.target.style.display = "none" }) : null,
       h("div", { class: "n" }, c.name, h("small", null, c.num + " \xB7 " + c.cat), h("small", { class: "ag" })),
       h("i", { class: "pg" })
