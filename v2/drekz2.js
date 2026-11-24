@@ -228,6 +228,7 @@
     proximoAuto: true,
     abrAuto: true,
     splash: true,
+    extras: true,
     ponteSempre: false,
     ultimoCanal: ""
   };
@@ -441,7 +442,7 @@
     const p = prefs.get();
     return (k === "c" ? p.urlCanais : p.urlFilmes) || (k === "c" ? "https://canais-saimo.pages.dev/" : "https://filmes-saimo.pages.dev/");
   };
-  var CATS = ["TV Aberta", "Filmes e S\xE9ries", "Esportes", "Not\xEDcias", "Infantil", "Document\xE1rios", "Pluto TV", "24 Horas", "Variedades"];
+  var CATS = ["TV Aberta", "Filmes e S\xE9ries", "Esportes", "Not\xEDcias", "Infantil", "Document\xE1rios", "Pluto TV", "24 Horas", "Variedades", "Mais canais"];
   var mem = {};
   var tx = {};
   function txt(u) {
@@ -509,20 +510,66 @@
     }
     return ch ? o : L;
   }
+  var chave = (n) => norm(n).replace(/ /g, "").replace(/(hd|fhd|sd)$/, "");
+  function comExtras(L) {
+    if (prefs.get().extras === false || !mem.extras || !mem.extras.length) return L;
+    const idx = {};
+    const o = L.map((c) => {
+      const n2 = __spreadProps(__spreadValues({}, c), { variants: c.variants.slice() });
+      idx[chave(c.name)] = n2;
+      return n2;
+    });
+    const vis = /* @__PURE__ */ new Set();
+    o.forEach((c) => c.variants.forEach((v) => vis.add(v.url)));
+    let n = o.length;
+    for (const e of mem.extras) {
+      const v = e.variants.filter((x) => !vis.has(x.url));
+      if (!v.length) continue;
+      v.forEach((x) => vis.add(x.url));
+      const t = idx[chave(e.name)];
+      if (t) t.variants.push(...v);
+      else {
+        n++;
+        const c = __spreadProps(__spreadValues({}, e), { id: "ex_" + chave(e.name), cat: "Mais canais", variants: v, num: n });
+        idx[chave(e.name)] = c;
+        o.push(c);
+      }
+    }
+    return o;
+  }
+  var baseOta = () => window.__DREKZ && window.__DREKZ.base || "https://jogadorum.github.io/drekz-updates/";
+  async function carregaExtras() {
+    if (mem.extras) return;
+    try {
+      const t = await get(baseOta() + "v2/extras.txt", { timeout: 7e3 });
+      const r = parseCanais(t);
+      if (r.length) {
+        mem.extras = r;
+        cache.set("extras", r);
+        return;
+      }
+    } catch (e) {
+    }
+    mem.extras = cache.get("extras", []);
+  }
   async function canais(force) {
-    if (mem.canais && !force) return vivos(mem.canais);
+    if (mem.canais && !force) return vivos(comExtras(mem.canais));
+    if (force) mem.extras = null;
+    const ex = carregaExtras();
     try {
       const t = await get(base("c") + "catalogo.txt");
       const r = parseCanais(t);
       if (r.length) {
         cache.set("canais", r);
         mem.canais = r;
-        return vivos(r);
+        await ex;
+        return vivos(comExtras(r));
       }
     } catch (e) {
     }
     mem.canais = cache.get("canais", []);
-    return vivos(mem.canais);
+    await ex;
+    return vivos(comExtras(mem.canais));
   }
   function categorias(list) {
     const s = [];
@@ -732,15 +779,15 @@
     { n: "Globoplay", id: "307", c: "#ff5a1f" },
     { n: "Crunchyroll", id: "283", c: "#f47521" }
   ];
-  async function porTipo(chave, serie) {
+  async function porTipo(chave2, serie) {
     const [ds, f] = await Promise.all([destaques(), fichas()]), by = new Map(f.map((x) => [x.id, x])), seen = /* @__PURE__ */ new Set(), out = [];
-    ds.filter((r) => norm(r.titulo).includes(chave)).forEach((r) => r.itens.forEach((it) => {
+    ds.filter((r) => norm(r.titulo).includes(chave2)).forEach((r) => r.itens.forEach((it) => {
       if (it.serie !== serie || seen.has(it.id)) return;
       seen.add(it.id);
       out.push(by.get(it.id) || it);
     }));
     f.forEach((x) => {
-      if (x.serie === serie && !seen.has(x.id) && x.genres.some((g) => norm(g).includes(chave))) {
+      if (x.serie === serie && !seen.has(x.id) && x.genres.some((g) => norm(g).includes(chave2))) {
         seen.add(x.id);
         out.push(x);
       }
@@ -1284,7 +1331,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.18";
+  var VER = "2.2.19";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -3718,6 +3765,10 @@
         lin("Buffer ao vivo", "Maior = menos travadas, mas demora mais para abrir o canal", L[p().buffer], () => {
           const o = ["normal", "grande", "maximo"];
           prefs.set({ buffer: o[(o.indexOf(p().buffer) + 1) % 3] });
+        }),
+        lin("Canais extras", 'Mais canais brasileiros (lista p\xFAblica iptv-org) como reserva e em "Mais canais". Se n\xE3o rodarem, desligue', p().extras !== false ? "Ligado" : "Desligado", () => {
+          prefs.set({ extras: p().extras === false });
+          recarregar && recarregar();
         }),
         lin("Anima\xE7\xE3o de abertura", "Mostra o logo animado quando o app abre (qualquer tecla pula)", p().splash !== false ? "Ligado" : "Desligado", () => prefs.set({ splash: p().splash === false })),
         lin("Pular abertura autom\xE1tico", 'Nas s\xE9ries, pula a abertura sozinho. Aprende na 1\xAA vez que voc\xEA toca em "Pular abertura"', p().abrAuto ? "Ligado" : "Desligado", () => prefs.set({ abrAuto: !p().abrAuto })),
