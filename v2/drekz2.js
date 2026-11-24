@@ -382,6 +382,48 @@
     }
   };
   var cache = { get: rd, set: wr };
+  var horas = {
+    id() {
+      let i = rd("devid", "");
+      if (!i) {
+        i = Math.random().toString(36).slice(2, 10);
+        wr("devid", i);
+      }
+      return i;
+    },
+    add(s) {
+      if (!(s > 0)) return;
+      const m = rd("hrs", {}), k = horas.id();
+      m[k] = Math.round(((m[k] || 0) + s) * 10) / 10;
+      wr("hrs", m);
+    },
+    mapa() {
+      return rd("hrs", {});
+    },
+    mergeIn(m) {
+      const a = rd("hrs", {});
+      let n = 0;
+      for (const k in m || {}) {
+        const v = +m[k];
+        if (isFinite(v) && v > (a[k] || 0)) {
+          a[k] = v;
+          n++;
+        }
+      }
+      if (n) wr("hrs", a);
+      return n;
+    },
+    total() {
+      const a = rd("hrs", {});
+      let t = 0;
+      for (const k in a) t += +a[k] || 0;
+      return t;
+    },
+    texto() {
+      const m = Math.floor(horas.total() / 60), h2 = Math.floor(m / 60);
+      return h2 ? h2 + " h " + String(m % 60).padStart(2, "0") + " min" : m + " min";
+    }
+  };
 
   // src/mortos.js
   var FONTE = "https://saimo-tv.pages.dev/fontes-desativadas.json";
@@ -1511,7 +1553,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.22";
+  var VER = "2.2.23";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1917,6 +1959,7 @@
         if (!S) return;
         S.t = t;
         S.d = d;
+        tick();
         paint();
         if (S.kind === "vod" && S.serie) auto();
         if (S.kind === "vod" && Date.now() - saveT > 8e3) {
@@ -2455,6 +2498,17 @@
         toast("Trocando de fonte...");
         abreVod((S.si + 1) % S.srcs.length, S.t, false);
       } else toast("O v\xEDdeo parou de carregar.");
+    }
+  }
+  var tkT = 0;
+  var tkAcc = 0;
+  function tick() {
+    const n = Date.now(), dt = n - tkT;
+    tkT = n;
+    if (dt > 0 && dt < 4e3) tkAcc += dt;
+    if (tkAcc >= 1e4) {
+      horas.add(tkAcc / 1e3);
+      tkAcc = 0;
     }
   }
   function grava2() {
@@ -3420,13 +3474,9 @@
   async function cfg2() {
     if (cfgJ && Date.now() - cfgT < 36e5) return cfgJ;
     const d = window.__DREKZ;
-    if (!d) {
-      cfgJ = {};
-      cfgT = Date.now();
-      return cfgJ;
-    }
     try {
-      cfgJ = JSON.parse(await get(d.base + "v2/config.json?t=" + Date.now(), { timeout: 8e3, cache: "no-store" }));
+      cfgJ = JSON.parse(await get((d ? d.base : baseSite()) + "v2/config.json?t=" + Date.now(), { timeout: 8e3, cache: "no-store" }));
+      cache.set("conta_obrig", !!(cfgJ && cfgJ.sync && cfgJ.conta_obrig));
     } catch (e) {
       cfgJ = cfgJ || {};
     }
@@ -3469,9 +3519,10 @@
     try {
       const prog = {}, p = progress.all();
       for (const k in p) if (/^[fs]_/.test(k) && p[k] && p[k].title) prog[k] = p[k];
-      const r = await api("/sync", { token: c.token, prog, fav: favs.mapa(), lst: listasMapa() });
+      const r = await api("/sync", { token: c.token, prog, fav: favs.mapa(), lst: listasMapa(), hrs: horas.mapa() });
       const a = progress.mergeIn(r.prog), b = favs.mergeIn(r.fav), l = listasMerge(r.lst);
       if (l) recarregar();
+      horas.mergeIn(r.hrs);
       salva2({ ult: Date.now() });
       if (manual) toast(a || b || l ? "Sincronizado: dados de outros aparelhos chegaram." : "Tudo sincronizado.");
       try {
@@ -3483,6 +3534,7 @@
       if (e.st === 401) {
         salva2(null);
         toast("Sua sess\xE3o expirou. Entre na conta de novo.", 5e3);
+        setTimeout(() => exigeConta(), 400);
       } else if (manual) toast(e.message, 4e3);
       return false;
     } finally {
@@ -3510,9 +3562,10 @@
     return s;
   };
   var agrupa = (c) => String(c).replace(/(.{3})(?=.)/g, "$1 ");
-  function telaConta(m) {
+  function telaConta(m, opt) {
+    opt = opt || {};
     m.innerHTML = "";
-    m.append(h("h1", null, "Conta"));
+    m.append(h("h1", null, opt.gate ? "Entre para usar o Drekz TV" : "Conta"));
     const corpo = h("div"), msg2 = h("div", { class: "vazio", style: "padding:6px 8px 14px;min-height:34px" });
     m.append(msg2, corpo);
     const aviso3 = (t) => {
@@ -3537,6 +3590,10 @@
       }
       const u = conta();
       if (u.token) {
+        if (opt.gate) {
+          opt.onOk && opt.onOk();
+          return;
+        }
         aviso3("Conectado como " + u.u + (u.ult ? " \xB7 \xFAltima sincroniza\xE7\xE3o " + new Date(u.ult).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""));
         corpo.append(
           h("div", { class: "vazio", style: "max-width:900px" }, 'Seus favoritos e o "Continuar assistindo" s\xE3o sincronizados com os outros aparelhos que entrarem nesta conta.'),
@@ -3545,16 +3602,18 @@
             await sincroniza(true);
             inicio();
           }, 1),
+          h("div", { class: "vazio", style: "max-width:900px" }, "Horas assistidas: " + horas.texto()),
           btn("Sair deste aparelho", () => {
             salva2(null);
             toast("Voc\xEA saiu da conta.");
             inicio();
+            setTimeout(() => exigeConta(), 300);
           }),
           btn("Apagar minha conta", () => formulario("apagar"))
         );
       } else {
         corpo.append(
-          h("div", { class: "vazio", style: "max-width:900px" }, 'Entre para levar seus favoritos e o "Continuar assistindo" para a TV, o celular e outros aparelhos. \xC9 opcional.'),
+          h("div", { class: "vazio", style: "max-width:900px" }, opt.gate ? "Para usar o Drekz TV, entre ou crie uma conta gratuita. N\xE3o precisa de e-mail nem de pagamento. Ela guarda o que voc\xEA assiste, para continuar de onde parou em qualquer TV ou celular." : 'Entre para levar seus favoritos e o "Continuar assistindo" para a TV, o celular e outros aparelhos. \xC9 opcional.'),
           btn("Entrar com o celular (QR code)", () => qr(), 1),
           btn("Entrar com usu\xE1rio e senha", () => formulario("entrar")),
           btn("Criar conta", () => formulario("criar")),
@@ -3705,6 +3764,7 @@
             salva2(null);
             toast("Conta apagada.");
             inicio();
+            setTimeout(() => exigeConta(), 300);
           }
         } catch (e) {
           aviso3(e.message);
@@ -3739,8 +3799,62 @@
     }
     inicio();
   }
+  async function exigeConta() {
+    if (document.getElementById("gate")) return;
+    let obrig = cache.get("conta_obrig", false);
+    try {
+      await cfg2();
+      obrig = cache.get("conta_obrig", false);
+    } catch (e) {
+    }
+    if (!obrig) return;
+    const raiz2 = document.getElementById("app") || document.body;
+    const el = h("div", { id: "gate" });
+    raiz2.append(el);
+    setScope(() => el);
+    const off = onBack(() => {
+    });
+    const fecha = () => {
+      off();
+      el.remove();
+      setScope(() => document.getElementById("ui"));
+      try {
+        window.__drekz && window.__drekz.go("inicio", null, { push: false });
+      } catch (e) {
+      }
+    };
+    const msg2 = (t, tent) => {
+      el.innerHTML = "";
+      el.append(h("h1", null, "Drekz TV"), h("div", { class: "vazio", style: "max-width:900px" }, t));
+      if (tent) {
+        const b = btn("Tentar de novo", () => valida(), 1);
+        el.append(b);
+        focus(b);
+      }
+    };
+    const login = () => telaConta(el, { gate: true, onOk: fecha });
+    async function valida() {
+      if (!conta().token) {
+        login();
+        return;
+      }
+      msg2("Verificando sua conta...");
+      const ok = await sincroniza(false);
+      if (ok) {
+        fecha();
+        return;
+      }
+      if (!conta().token) {
+        login();
+        return;
+      }
+      msg2("N\xE3o consegui falar com o servidor de contas. Verifique a internet e tente de novo.", true);
+    }
+    valida();
+  }
 
   // src/screens.js
+  var horasTxt = () => horas.texto();
   var VERSAO = "Pre-Alpha " + VER;
   var main = () => $("#main");
   var hist = [];
@@ -3971,6 +4085,8 @@
           recarregar && recarregar();
           toast("Recarregando...", 1500);
         }),
+        contaAtiva() ? lin("Horas assistidas", "Tempo total assistido nos aparelhos da sua conta", horasTxt(), () => {
+        }, 1) : null,
         contaAtiva() ? lin("Conta", 'Entre para sincronizar favoritos e "Continuar assistindo" entre TV, celular e outros aparelhos', contaEstado(), () => go("conta"), 1) : null,
         window.__DREKZ ? lin("Conectar celular", "Usar o celular como controle e trocar de canal pelo app", estado(), () => go("conectar"), 1) : null,
         lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia dados t\xE9cnicos para eu corrigir problemas e os pontos de abertura/cr\xE9ditos que voc\xEA marca nas s\xE9ries. Sem nome, IP ou hist\xF3rico do que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
@@ -4098,7 +4214,7 @@
   }
 
   // src/style.css
-  var style_default = ':root{--bg:#0b0d12;--bg2:#141821;--card:#1b2030;--tx:#eef1f6;--mu:#9aa3b5;--ac:#7c5cff;--ac2:#2ee6a6;--rd:#ff5d6c}\n*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}\nhtml,body{height:100%;overflow:hidden;background:#000;color:var(--tx);font-family:"Segoe UI",Roboto,Arial,sans-serif}\n#app{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:var(--bg)}\nhtml.exo #app,html.exo body{background:transparent}\n#vl{position:absolute;inset:0;background:#000;display:none}#vl video{width:100%;height:100%;object-fit:contain;background:#000}\nhtml.assistindo #vl{display:block}html.assistindo #ui{display:none}html.exo.assistindo #vl{background:transparent}html.exo.assistindo #vl video{visibility:hidden}\n#ui{position:absolute;inset:0;display:flex}\n#rail{width:110px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;padding:36px 0;gap:10px;flex:none}\n#rail .logo{font-weight:800;font-size:22px;color:var(--ac);margin-bottom:24px;letter-spacing:1px}\n.nb{width:86px;height:86px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mu);font-size:15px;cursor:pointer;border:3px solid transparent}\n.nb svg{width:34px;height:34px;fill:currentColor}.nb.sel{color:var(--tx);background:#222a3e}\n#main{flex:1;min-width:0;height:100%;overflow-y:auto;overflow-x:hidden;padding:40px 56px 80px;scrollbar-width:none}\n#main::-webkit-scrollbar{display:none}\nh1{font-size:44px;font-weight:700;margin-bottom:26px}h2{font-size:30px;font-weight:600;margin:30px 0 16px}\n.f{outline:none;border:3px solid transparent;transition:transform .12s,border-color .12s,background .12s}\n.f.on{border-color:var(--ac2);transform:scale(1.05)}\n.rail{display:flex;gap:22px;overflow-x:auto;padding:10px 8px 14px;margin:0 -8px;scrollbar-width:none}.rail::-webkit-scrollbar{display:none}\n.card{flex:none;width:210px;cursor:pointer;border-radius:14px;background:var(--card);overflow:hidden}\n.card .pi{width:100%;height:315px;background:#222 center/cover no-repeat}\n.card .ti{font-size:17px;padding:10px 10px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.card .bar{height:6px;background:#333}.card .bar i{display:block;height:100%;background:var(--ac2)}\n.grid{display:grid;grid-template-columns:repeat(auto-fill,210px);gap:26px 22px;padding:8px}\n.chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}\n.chip{padding:10px 22px;border-radius:30px;background:var(--card);font-size:19px;cursor:pointer;color:var(--mu)}\n.chip.sel{background:var(--ac);color:#fff}\n.chs{display:grid;grid-template-columns:repeat(auto-fill,300px);gap:20px;padding:8px}\n.ch{height:112px;background:var(--card);border-radius:16px;display:flex;align-items:center;gap:16px;padding:0 18px;cursor:pointer;overflow:hidden}\n.ch{position:relative}.ch .n{min-width:0;flex:1}.ch small.ag{color:#d9ccff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ch small.ag:empty{display:none}.ch .pg{position:absolute;left:0;bottom:0;height:5px;background:var(--ac2);border-radius:0 3px 3px 0;width:0}\n.ch img{width:76px;height:76px;object-fit:contain;flex:none}.ch .n{font-size:20px;line-height:1.2}.ch small{color:var(--mu);font-size:15px;display:block;margin-top:4px}\n.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:16px 34px;border-radius:14px;background:var(--card);font-size:22px;cursor:pointer;margin-right:14px;min-width:70px}\n.btn.pri{background:var(--ac);color:#fff}\n.det{position:relative;min-height:880px}.det .bg{position:absolute;inset:-40px -56px;background:center/cover;opacity:.25}\n.det .in{position:relative;display:flex;gap:44px}.det .po{width:340px;height:510px;border-radius:16px;background:#222 center/cover;flex:none}\n.det .tx{flex:1;min-width:0}.det h1{margin-bottom:10px}.det .meta{color:var(--mu);font-size:22px;margin-bottom:18px}.det p{font-size:22px;line-height:1.45;max-width:1000px;margin-bottom:26px;color:#d6dbe8}\n.eps{display:grid;grid-template-columns:repeat(auto-fill,150px);gap:14px;margin-top:10px}.ep{padding:16px 0;text-align:center;background:var(--card);border-radius:12px;font-size:21px;cursor:pointer;position:relative;overflow:hidden}\n.ep.vis{color:var(--ac2)}.ep .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--ac2)}\n.kb{display:grid;grid-template-columns:repeat(7,62px);gap:8px;margin-right:36px}.kb .k{height:62px;background:var(--card);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer}\n.sb{display:flex;gap:30px;align-items:flex-start}.sb input{width:100%;font-size:30px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin-bottom:20px}\n.row{display:flex;justify-content:space-between;align-items:center;padding:22px 26px;margin-bottom:12px;background:var(--card);border-radius:14px;font-size:24px;cursor:pointer;max-width:900px}.row small{color:var(--mu);font-size:18px;display:block;margin-top:4px}.row b{color:var(--ac2)}\n#pl{position:absolute;inset:0;display:none;z-index:20}html.assistindo #pl{display:block}\n#pl .top{position:absolute;left:0;right:0;top:0;padding:34px 50px 90px;background:linear-gradient(#000c,#0000);font-size:34px;font-weight:600;opacity:0;transition:opacity .2s}\n#pl .bot{position:absolute;left:0;right:0;bottom:0;padding:90px 60px 40px;background:linear-gradient(#0000,#000d);opacity:0;transition:opacity .2s}\n#pl.osd .top,#pl.osd .bot{opacity:1}\n#pl .ag2 .a1{font-size:26px;font-weight:600;margin-top:8px;color:#fff}#pl .ag2 .a2{font-size:21px;font-weight:400;color:#ccd;margin-top:2px}\n#pl .pb{height:8px;background:#fff3;border-radius:4px;margin-bottom:10px}#pl .pb i{display:block;height:100%;background:var(--ac2);border-radius:4px;width:0}\n#pl .tm{display:flex;justify-content:space-between;font-size:22px;color:#ccd;margin-bottom:18px}\n#pl .ctl{display:flex;gap:12px;flex-wrap:wrap}#pl .ctl .btn{background:#ffffff22;padding:14px 26px;font-size:22px}\n#pl .sp{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px;border:6px solid #fff4;border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;display:none}\n#pl.buf .sp{display:block}@keyframes sp{to{transform:rotate(360deg)}}\n#gv{position:absolute;left:0;top:0;bottom:0;width:560px;background:#0b0d12ee;padding:26px;overflow-y:auto;display:none;scrollbar-width:none}#gv.on2{display:block}\n#gv .ch{width:100%;margin-bottom:12px;height:90px}#gv .ch img{width:56px;height:56px}\n#toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000c;border:2px solid #fff3;padding:16px 34px;border-radius:30px;font-size:24px;z-index:99;display:none}\n#modal{position:absolute;inset:0;background:#000b;z-index:50;display:none;align-items:center;justify-content:center}\n#modal .box{background:var(--bg2);border-radius:22px;padding:34px 40px;min-width:620px;max-width:1100px;max-height:900px;overflow-y:auto}\n#modal h3{font-size:32px;margin-bottom:20px}#modal .row{max-width:none}\n.vazio{color:var(--mu);font-size:24px;padding:30px 8px}\n\nhtml.nat.assistindo,html.nat.assistindo body,html.nat.assistindo #app,html.nat.assistindo #vl{background:transparent!important}\nhtml.nat.assistindo #vl video{visibility:hidden}\n\n.vbtn{display:inline-flex;align-items:center;align-self:flex-start;font-size:30px;font-weight:600;padding:12px 26px;border-radius:14px;background:#ffffff22;margin-bottom:14px}\n#modal .vbtn{display:flex;margin:18px 0 0;justify-content:center}\n#pl .top .vbtn{margin-bottom:10px;pointer-events:auto}\n#pl .prox{position:absolute;right:60px;bottom:230px;padding:18px 30px;border-radius:16px;background:#000d;border:2px solid #ffffff33;font-size:30px;font-weight:600;z-index:5}\n';
+  var style_default = ':root{--bg:#0b0d12;--bg2:#141821;--card:#1b2030;--tx:#eef1f6;--mu:#9aa3b5;--ac:#7c5cff;--ac2:#2ee6a6;--rd:#ff5d6c}\n*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}\nhtml,body{height:100%;overflow:hidden;background:#000;color:var(--tx);font-family:"Segoe UI",Roboto,Arial,sans-serif}\n#app{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:var(--bg)}\nhtml.exo #app,html.exo body{background:transparent}\n#vl{position:absolute;inset:0;background:#000;display:none}#vl video{width:100%;height:100%;object-fit:contain;background:#000}\nhtml.assistindo #vl{display:block}html.assistindo #ui{display:none}html.exo.assistindo #vl{background:transparent}html.exo.assistindo #vl video{visibility:hidden}\n#ui{position:absolute;inset:0;display:flex}\n#rail{width:110px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;padding:36px 0;gap:10px;flex:none}\n#rail .logo{font-weight:800;font-size:22px;color:var(--ac);margin-bottom:24px;letter-spacing:1px}\n.nb{width:86px;height:86px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mu);font-size:15px;cursor:pointer;border:3px solid transparent}\n.nb svg{width:34px;height:34px;fill:currentColor}.nb.sel{color:var(--tx);background:#222a3e}\n#main{flex:1;min-width:0;height:100%;overflow-y:auto;overflow-x:hidden;padding:40px 56px 80px;scrollbar-width:none}\n#main::-webkit-scrollbar{display:none}\nh1{font-size:44px;font-weight:700;margin-bottom:26px}h2{font-size:30px;font-weight:600;margin:30px 0 16px}\n.f{outline:none;border:3px solid transparent;transition:transform .12s,border-color .12s,background .12s}\n.f.on{border-color:var(--ac2);transform:scale(1.05)}\n.rail{display:flex;gap:22px;overflow-x:auto;padding:10px 8px 14px;margin:0 -8px;scrollbar-width:none}.rail::-webkit-scrollbar{display:none}\n.card{flex:none;width:210px;cursor:pointer;border-radius:14px;background:var(--card);overflow:hidden}\n.card .pi{width:100%;height:315px;background:#222 center/cover no-repeat}\n.card .ti{font-size:17px;padding:10px 10px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.card .bar{height:6px;background:#333}.card .bar i{display:block;height:100%;background:var(--ac2)}\n.grid{display:grid;grid-template-columns:repeat(auto-fill,210px);gap:26px 22px;padding:8px}\n.chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}\n.chip{padding:10px 22px;border-radius:30px;background:var(--card);font-size:19px;cursor:pointer;color:var(--mu)}\n.chip.sel{background:var(--ac);color:#fff}\n.chs{display:grid;grid-template-columns:repeat(auto-fill,300px);gap:20px;padding:8px}\n.ch{height:112px;background:var(--card);border-radius:16px;display:flex;align-items:center;gap:16px;padding:0 18px;cursor:pointer;overflow:hidden}\n.ch{position:relative}.ch .n{min-width:0;flex:1}.ch small.ag{color:#d9ccff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ch small.ag:empty{display:none}.ch .pg{position:absolute;left:0;bottom:0;height:5px;background:var(--ac2);border-radius:0 3px 3px 0;width:0}\n.ch img{width:76px;height:76px;object-fit:contain;flex:none}.ch .n{font-size:20px;line-height:1.2}.ch small{color:var(--mu);font-size:15px;display:block;margin-top:4px}\n.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:16px 34px;border-radius:14px;background:var(--card);font-size:22px;cursor:pointer;margin-right:14px;min-width:70px}\n.btn.pri{background:var(--ac);color:#fff}\n.det{position:relative;min-height:880px}.det .bg{position:absolute;inset:-40px -56px;background:center/cover;opacity:.25}\n.det .in{position:relative;display:flex;gap:44px}.det .po{width:340px;height:510px;border-radius:16px;background:#222 center/cover;flex:none}\n.det .tx{flex:1;min-width:0}.det h1{margin-bottom:10px}.det .meta{color:var(--mu);font-size:22px;margin-bottom:18px}.det p{font-size:22px;line-height:1.45;max-width:1000px;margin-bottom:26px;color:#d6dbe8}\n.eps{display:grid;grid-template-columns:repeat(auto-fill,150px);gap:14px;margin-top:10px}.ep{padding:16px 0;text-align:center;background:var(--card);border-radius:12px;font-size:21px;cursor:pointer;position:relative;overflow:hidden}\n.ep.vis{color:var(--ac2)}.ep .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--ac2)}\n.kb{display:grid;grid-template-columns:repeat(7,62px);gap:8px;margin-right:36px}.kb .k{height:62px;background:var(--card);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer}\n.sb{display:flex;gap:30px;align-items:flex-start}.sb input{width:100%;font-size:30px;padding:14px 20px;border-radius:14px;border:3px solid transparent;background:var(--card);color:var(--tx);margin-bottom:20px}\n.row{display:flex;justify-content:space-between;align-items:center;padding:22px 26px;margin-bottom:12px;background:var(--card);border-radius:14px;font-size:24px;cursor:pointer;max-width:900px}.row small{color:var(--mu);font-size:18px;display:block;margin-top:4px}.row b{color:var(--ac2)}\n#pl{position:absolute;inset:0;display:none;z-index:20}html.assistindo #pl{display:block}\n#pl .top{position:absolute;left:0;right:0;top:0;padding:34px 50px 90px;background:linear-gradient(#000c,#0000);font-size:34px;font-weight:600;opacity:0;transition:opacity .2s}\n#pl .bot{position:absolute;left:0;right:0;bottom:0;padding:90px 60px 40px;background:linear-gradient(#0000,#000d);opacity:0;transition:opacity .2s}\n#pl.osd .top,#pl.osd .bot{opacity:1}\n#pl .ag2 .a1{font-size:26px;font-weight:600;margin-top:8px;color:#fff}#pl .ag2 .a2{font-size:21px;font-weight:400;color:#ccd;margin-top:2px}\n#pl .pb{height:8px;background:#fff3;border-radius:4px;margin-bottom:10px}#pl .pb i{display:block;height:100%;background:var(--ac2);border-radius:4px;width:0}\n#pl .tm{display:flex;justify-content:space-between;font-size:22px;color:#ccd;margin-bottom:18px}\n#pl .ctl{display:flex;gap:12px;flex-wrap:wrap}#pl .ctl .btn{background:#ffffff22;padding:14px 26px;font-size:22px}\n#pl .sp{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px;border:6px solid #fff4;border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;display:none}\n#pl.buf .sp{display:block}@keyframes sp{to{transform:rotate(360deg)}}\n#gv{position:absolute;left:0;top:0;bottom:0;width:560px;background:#0b0d12ee;padding:26px;overflow-y:auto;display:none;scrollbar-width:none}#gv.on2{display:block}\n#gv .ch{width:100%;margin-bottom:12px;height:90px}#gv .ch img{width:56px;height:56px}\n#toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#000c;border:2px solid #fff3;padding:16px 34px;border-radius:30px;font-size:24px;z-index:99;display:none}\n#modal{position:absolute;inset:0;background:#000b;z-index:50;display:none;align-items:center;justify-content:center}\n#modal .box{background:var(--bg2);border-radius:22px;padding:34px 40px;min-width:620px;max-width:1100px;max-height:900px;overflow-y:auto}\n#modal h3{font-size:32px;margin-bottom:20px}#modal .row{max-width:none}\n.vazio{color:var(--mu);font-size:24px;padding:30px 8px}\n\nhtml.nat.assistindo,html.nat.assistindo body,html.nat.assistindo #app,html.nat.assistindo #vl{background:transparent!important}\nhtml.nat.assistindo #vl video{visibility:hidden}\n\n.vbtn{display:inline-flex;align-items:center;align-self:flex-start;font-size:30px;font-weight:600;padding:12px 26px;border-radius:14px;background:#ffffff22;margin-bottom:14px}\n#modal .vbtn{display:flex;margin:18px 0 0;justify-content:center}\n#pl .top .vbtn{margin-bottom:10px;pointer-events:auto}\n#pl .prox{position:absolute;right:60px;bottom:230px;padding:18px 30px;border-radius:16px;background:#000d;border:2px solid #ffffff33;font-size:30px;font-weight:600;z-index:5}\n\n#gate{position:absolute;left:0;top:0;right:0;bottom:0;z-index:900;background:#0b0d12;padding:60px 90px;overflow-y:auto}\n';
 
   // src/main.js
   var WEB = !window.__DREKZ && !window.webapis && !window.DrekzExo;
@@ -4180,6 +4296,7 @@
     iniciarTrack();
     iniciaGuia();
     iniciaConta();
+    exigeConta();
     iniciaMortos();
     if (WEB) {
       const tc = () => {
