@@ -489,8 +489,18 @@
       aviso();
     }
   };
-  async function adicionaLista(u) {
+  function normaliza(u) {
     u = String(u || "").trim();
+    let m;
+    if (m = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/i.exec(u)) return { url: "https://raw.githubusercontent.com/" + m[1] + "/" + m[2] + "/" + m[3].replace(/[?#].*$/, "") };
+    if (m = /^https?:\/\/gist\.github\.com\/([^/]+)\/([0-9a-f]+)\/?$/i.exec(u)) return { url: "https://gist.githubusercontent.com/" + m[1] + "/" + m[2] + "/raw" };
+    if (/^https?:\/\/github\.com\/[^/]+(\/[^/]+)?(\/tree\/.*)?\/?$/i.test(u)) return { erro: "Esse \xE9 o endere\xE7o da p\xE1gina do GitHub, n\xE3o de uma lista. Abra o arquivo .m3u no GitHub, toque em Raw (ou Download raw file) e copie esse endere\xE7o." };
+    return { url: u };
+  }
+  async function adicionaLista(u) {
+    const nz = normaliza(u);
+    if (nz.erro) return { ok: false, msg: nz.erro };
+    u = nz.url;
     if (!/^https?:\/\/\S+$/i.test(u)) return { ok: false, msg: "Digite um endere\xE7o que comece com http:// ou https://" };
     const id = hash(u), m = mapa();
     if (m[id] && m[id].on) return { ok: false, msg: "Essa lista j\xE1 foi adicionada." };
@@ -1501,7 +1511,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.21";
+  var VER = "2.2.22";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
