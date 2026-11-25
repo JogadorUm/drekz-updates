@@ -1,1 +1,1 @@
-{"codigo": 154, "versao": "2.2.23", "notas": "Conta obrigatória (liga/desliga pelo config.json) e contador de horas assistidas", "arquivo": "apk/DrekzConnect.apk", "tamanho": 7550540}
+{"codigo": 155, "versao": "2.2.24", "notas": "Removido o contador de horas assistidas; conta obrigatória continua", "arquivo": "apk/DrekzConnect.apk", "tamanho": 7549972}

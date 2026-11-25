@@ -382,48 +382,6 @@
     }
   };
   var cache = { get: rd, set: wr };
-  var horas = {
-    id() {
-      let i = rd("devid", "");
-      if (!i) {
-        i = Math.random().toString(36).slice(2, 10);
-        wr("devid", i);
-      }
-      return i;
-    },
-    add(s) {
-      if (!(s > 0)) return;
-      const m = rd("hrs", {}), k = horas.id();
-      m[k] = Math.round(((m[k] || 0) + s) * 10) / 10;
-      wr("hrs", m);
-    },
-    mapa() {
-      return rd("hrs", {});
-    },
-    mergeIn(m) {
-      const a = rd("hrs", {});
-      let n = 0;
-      for (const k in m || {}) {
-        const v = +m[k];
-        if (isFinite(v) && v > (a[k] || 0)) {
-          a[k] = v;
-          n++;
-        }
-      }
-      if (n) wr("hrs", a);
-      return n;
-    },
-    total() {
-      const a = rd("hrs", {});
-      let t = 0;
-      for (const k in a) t += +a[k] || 0;
-      return t;
-    },
-    texto() {
-      const m = Math.floor(horas.total() / 60), h2 = Math.floor(m / 60);
-      return h2 ? h2 + " h " + String(m % 60).padStart(2, "0") + " min" : m + " min";
-    }
-  };
 
   // src/mortos.js
   var FONTE = "https://saimo-tv.pages.dev/fontes-desativadas.json";
@@ -1553,7 +1511,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.23";
+  var VER = "2.2.24";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -1959,7 +1917,6 @@
         if (!S) return;
         S.t = t;
         S.d = d;
-        tick();
         paint();
         if (S.kind === "vod" && S.serie) auto();
         if (S.kind === "vod" && Date.now() - saveT > 8e3) {
@@ -2498,17 +2455,6 @@
         toast("Trocando de fonte...");
         abreVod((S.si + 1) % S.srcs.length, S.t, false);
       } else toast("O v\xEDdeo parou de carregar.");
-    }
-  }
-  var tkT = 0;
-  var tkAcc = 0;
-  function tick() {
-    const n = Date.now(), dt = n - tkT;
-    tkT = n;
-    if (dt > 0 && dt < 4e3) tkAcc += dt;
-    if (tkAcc >= 1e4) {
-      horas.add(tkAcc / 1e3);
-      tkAcc = 0;
     }
   }
   function grava2() {
@@ -3519,10 +3465,9 @@
     try {
       const prog = {}, p = progress.all();
       for (const k in p) if (/^[fs]_/.test(k) && p[k] && p[k].title) prog[k] = p[k];
-      const r = await api("/sync", { token: c.token, prog, fav: favs.mapa(), lst: listasMapa(), hrs: horas.mapa() });
+      const r = await api("/sync", { token: c.token, prog, fav: favs.mapa(), lst: listasMapa() });
       const a = progress.mergeIn(r.prog), b = favs.mergeIn(r.fav), l = listasMerge(r.lst);
       if (l) recarregar();
-      horas.mergeIn(r.hrs);
       salva2({ ult: Date.now() });
       if (manual) toast(a || b || l ? "Sincronizado: dados de outros aparelhos chegaram." : "Tudo sincronizado.");
       try {
@@ -3602,7 +3547,6 @@
             await sincroniza(true);
             inicio();
           }, 1),
-          h("div", { class: "vazio", style: "max-width:900px" }, "Horas assistidas: " + horas.texto()),
           btn("Sair deste aparelho", () => {
             salva2(null);
             toast("Voc\xEA saiu da conta.");
@@ -3854,7 +3798,6 @@
   }
 
   // src/screens.js
-  var horasTxt = () => horas.texto();
   var VERSAO = "Pre-Alpha " + VER;
   var main = () => $("#main");
   var hist = [];
@@ -4085,8 +4028,6 @@
           recarregar && recarregar();
           toast("Recarregando...", 1500);
         }),
-        contaAtiva() ? lin("Horas assistidas", "Tempo total assistido nos aparelhos da sua conta", horasTxt(), () => {
-        }, 1) : null,
         contaAtiva() ? lin("Conta", 'Entre para sincronizar favoritos e "Continuar assistindo" entre TV, celular e outros aparelhos', contaEstado(), () => go("conta"), 1) : null,
         window.__DREKZ ? lin("Conectar celular", "Usar o celular como controle e trocar de canal pelo app", estado(), () => go("conectar"), 1) : null,
         lin("Relat\xF3rios de erro (Pre-Alpha)", "Envia dados t\xE9cnicos para eu corrigir problemas e os pontos de abertura/cr\xE9ditos que voc\xEA marca nas s\xE9ries. Sem nome, IP ou hist\xF3rico do que voc\xEA assiste. ID do aparelho: " + trk.id(), trk.ligado() ? "Ligado" : "Desligado", () => {
