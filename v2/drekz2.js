@@ -1511,7 +1511,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.24";
+  var VER = "2.2.25";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -3621,27 +3621,33 @@
         try {
           const v = await api("/vinc/ver", { c: r.c, s: seg });
           if (v.st === "ok") {
-            salva2({ u: v.u, token: v.token, ult: 0 });
-            toast("Conectado como " + v.u, 3500);
             try {
-              const ev2 = new Event("drekz-conta-vinc");
-              ev2.ip = v.ip || "";
-              dispatchEvent(ev2);
+              salva2({ u: v.u, token: v.token, ult: 0 });
+              toast("Conectado como " + v.u, 3500);
+              try {
+                const ev2 = new Event("drekz-conta-vinc");
+                ev2.ip = v.ip || "";
+                dispatchEvent(ev2);
+              } catch (e) {
+              }
+              await sincroniza(true);
             } catch (e) {
+              aviso3("Conta vinculada, mas deu um erro ao sincronizar: " + (e && e.message || e));
             }
-            await sincroniza(true);
             if (vivo) inicio();
             return;
           }
           if (v.st === "expirou") {
-            aviso3("O c\xF3digo expirou.");
+            aviso3("O c\xF3digo expirou. Toque em Gerar outro c\xF3digo.");
             return;
           }
+          aviso3("Aguardando o celular confirmar...");
         } catch (e) {
+          aviso3("N\xE3o consegui conferir com o servidor (" + (e && e.message || e) + "). Vou tentar de novo...");
         }
-        setTimeout(volta, 3e3);
+        setTimeout(volta, 2500);
       };
-      setTimeout(volta, 3e3);
+      setTimeout(volta, 2500);
     }
     function formulario(modo) {
       limpa();
