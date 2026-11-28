@@ -1511,7 +1511,7 @@
   };
 
   // src/upd.js
-  var VER = "2.2.25";
+  var VER = "2.2.26";
   var D = () => window.__DREKZ || null;
   var nova = null;
   var mostrando = false;
@@ -3446,6 +3446,7 @@
       if (!j.ok) {
         const e = new Error(j.erro || "Erro");
         e.st = r.status;
+        e.cs = j.st;
         throw e;
       }
       return j;
@@ -3458,6 +3459,18 @@
     }
   }
   var ocupado2 = false;
+  var apVisto = "";
+  function pedido(ap, manual) {
+    if (!ap || !ap.c) {
+      cache.set("ap", null);
+      return;
+    }
+    cache.set("ap", { c: ap.c, n: ap.n, t: Date.now() });
+    if (ap.c !== apVisto || manual) {
+      apVisto = ap.c;
+      toast("Um aparelho novo (" + (ap.n || "?") + ") quer entrar na sua conta. C\xF3digo: " + ap.c + ". Se n\xE3o foi voc\xEA, ignore.", 2e4);
+    }
+  }
   async function sincroniza(manual) {
     const c = conta();
     if (!c.token || ocupado2) return false;
@@ -3469,6 +3482,7 @@
       const a = progress.mergeIn(r.prog), b = favs.mergeIn(r.fav), l = listasMerge(r.lst);
       if (l) recarregar();
       salva2({ ult: Date.now() });
+      pedido(r.ap, manual);
       if (manual) toast(a || b || l ? "Sincronizado: dados de outros aparelhos chegaram." : "Tudo sincronizado.");
       try {
         dispatchEvent(new Event("drekz-conta"));
@@ -3478,7 +3492,7 @@
     } catch (e) {
       if (e.st === 401) {
         salva2(null);
-        toast("Sua sess\xE3o expirou. Entre na conta de novo.", 5e3);
+        toast(e.cs ? e.message : "Sua sess\xE3o expirou. Entre na conta de novo.", 8e3);
         setTimeout(() => exigeConta(), 400);
       } else if (manual) toast(e.message, 4e3);
       return false;
@@ -3498,6 +3512,10 @@
     });
   }
   var btn = (t, fn, x) => h("div", { class: "btn f" + (x ? " pri" : ""), onclick: fn }, t);
+  var aparelho2 = () => {
+    const u = navigator.userAgent || "";
+    return /Tizen/i.test(u) ? "TV Samsung" : /Android/i.test(u) ? "Android" : "Navegador";
+  };
   var aleat = (n) => {
     const A = "abcdefghjkmnpqrstuvwxyz23456789";
     let s = "";
@@ -3540,6 +3558,8 @@
           return;
         }
         aviso3("Conectado como " + u.u + (u.ult ? " \xB7 \xFAltima sincroniza\xE7\xE3o " + new Date(u.ult).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""));
+        const ap = cache.get("ap", null);
+        if (ap && Date.now() - ap.t < 3e5) corpo.append(h("div", { style: "font-size:28px;max-width:900px;margin:0 0 16px;padding:14px 18px;border-radius:14px;background:var(--card)" }, "Um aparelho novo (" + (ap.n || "?") + ") quer entrar na sua conta. C\xF3digo: ", h("b", null, ap.c), ". Se n\xE3o foi voc\xEA, ignore."));
         corpo.append(
           h("div", { class: "vazio", style: "max-width:900px" }, 'Seus favoritos e o "Continuar assistindo" s\xE3o sincronizados com os outros aparelhos que entrarem nesta conta.'),
           btn("Sincronizar agora", async () => {
@@ -3649,16 +3669,17 @@
       };
       setTimeout(volta, 2500);
     }
-    function formulario(modo) {
+    function formulario(modo, ctx) {
       limpa();
       aviso3("");
       const campos = {
         entrar: [["u", "Usu\xE1rio", 0], ["p", "Senha", 1]],
         criar: [["u", "Usu\xE1rio (3 a 20: letras min\xFAsculas, n\xFAmeros . _ -)", 0], ["p", "Senha (m\xEDnimo 6)", 1], ["e", "E-mail de recupera\xE7\xE3o (opcional)", 0]],
         recuperar: [["u", "Usu\xE1rio", 0], ["r", "C\xF3digo de recupera\xE7\xE3o (12 caracteres)", 0], ["n", "Nova senha (m\xEDnimo 6)", 1]],
-        apagar: [["p", "Digite sua senha para apagar a conta", 1]]
+        apagar: [["p", "Digite sua senha para apagar a conta", 1]],
+        aprovar: [["c", "C\xF3digo de 6 n\xFAmeros", 0]]
       }[modo];
-      const titulo = { entrar: "Entrar", criar: "Criar conta", recuperar: "Recuperar senha", apagar: "Apagar conta" }[modo];
+      const titulo = { entrar: "Entrar", criar: "Criar conta", recuperar: "Recuperar senha", apagar: "Apagar conta", aprovar: "Confirmar aparelho" }[modo];
       const ins = {};
       let alvo = null;
       const linhas = campos.map(([k, ph, sn], i) => {
@@ -3694,11 +3715,25 @@
         aviso3("Aguarde...");
         try {
           if (modo === "entrar") {
-            const r = await api("/entrar", { u: v("u").trim(), p: v("p") });
-            salva2({ u: r.u, token: r.token, ult: 0 });
-            toast("Conectado como " + r.u, 3500);
-            await sincroniza(true);
-            inicio();
+            const base2 = { u: v("u").trim(), p: v("p"), dev: aparelho2() };
+            let r;
+            try {
+              r = await api("/entrar", base2);
+            } catch (e) {
+              if (e.cs === "pausada") {
+                pausada(base2);
+                return;
+              }
+              throw e;
+            }
+            if (r.st === "aprovar") {
+              aprovar(base2);
+              return;
+            }
+            await entrou(r);
+          } else if (modo === "aprovar") {
+            const r = await api("/entrar", __spreadProps(__spreadValues({}, ctx.base), { ap: v("c").trim() }));
+            await entrou(r);
           } else if (modo === "criar") {
             const r = await api("/registrar", { u: v("u").trim().toLowerCase(), p: v("p"), e: v("e").trim() });
             salva2({ u: r.u, token: r.token, ult: 0 });
@@ -3730,6 +3765,39 @@
         btn("Cancelar", inicio),
         modo === "recuperar" ? h("div", { class: "vazio", style: "font-size:20px" }, "Perdeu o c\xF3digo tamb\xE9m? Fale com o suporte do Drekz pelo e-mail que voc\xEA cadastrou.") : null
       )));
+      foco();
+    }
+    async function entrou(r) {
+      salva2({ u: r.u, token: r.token, ult: 0 });
+      toast("Conectado como " + r.u, 3500);
+      await sincroniza(true);
+      inicio();
+    }
+    function pausada(base2) {
+      limpa();
+      aviso3("");
+      corpo.append(
+        h("div", { style: "font-size:26px;max-width:900px;line-height:1.5;margin-bottom:18px" }, "Sua conta est\xE1 pausada. Quer reativar e entrar agora?"),
+        btn("Reativar e entrar", async () => {
+          aviso3("Aguarde...");
+          try {
+            const r = await api("/entrar", __spreadProps(__spreadValues({}, base2), { reativar: 1 }));
+            if (r.st === "aprovar") {
+              aprovar(__spreadProps(__spreadValues({}, base2), { reativar: 1 }));
+              return;
+            }
+            await entrou(r);
+          } catch (e) {
+            aviso3(e.message);
+          }
+        }, 1),
+        btn("Cancelar", inicio)
+      );
+      foco();
+    }
+    function aprovar(base2) {
+      formulario("aprovar", { base: base2 });
+      corpo.prepend(h("div", { class: "vazio", style: "max-width:1000px;margin-bottom:14px" }, "Para proteger sua conta, este aparelho precisa ser aprovado. Abra o Drekz em um aparelho onde voc\xEA j\xE1 est\xE1 logado: um c\xF3digo de 6 n\xFAmeros aparece l\xE1 (se n\xE3o aparecer, v\xE1 em Ajustes > Conta e toque em Sincronizar agora). Digite o c\xF3digo aqui. Ele vale 5 minutos. Sem acesso a nenhum aparelho? Use Recuperar senha com o c\xF3digo de recupera\xE7\xE3o."));
       foco();
     }
     function codigoRec(rec) {

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Drekz TV · Administração de contas</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0b0d12;color:#eef0f6;font:16px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:22px;margin:6px 0 4px}p{color:#a8aebd;margin:6px 0 16px}
+input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid #2a3040;background:#151a24;color:#fff;font-size:16px}
+button{padding:10px 14px;border-radius:10px;border:0;background:#6d5cff;color:#fff;font-size:15px;cursor:pointer}
+button.s{background:#232a3a}button.r{background:#a8323e}button:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 0;border-bottom:1px solid #1d2331}
+.row b{flex:1 1 140px;word-break:break-all}.tag{font-size:13px;padding:2px 9px;border-radius:99px;background:#232a3a}
+.tag.pausada{background:#7a5b12}.tag.bloqueada{background:#7a1f2a}.tag.ativa{background:#1f5a38}
+#st{min-height:24px;color:#ffd479;margin:10px 0}
+</style></head><body><main>
+<h1>Administração de contas</h1>
+<p>Só funciona com a ADMIN_KEY do seu Worker. A chave fica apenas na memória desta página e é enviada só ao Worker de contas. Ela não é salva.</p>
+<input id="k" type="password" placeholder="ADMIN_KEY" autocomplete="off" autocapitalize="off" spellcheck="false">
+<div style="display:flex;gap:8px;margin:12px 0"><button id="ls">Listar contas</button><input id="q" placeholder="filtrar por nome" style="flex:1"></div>
+<div id="st"></div><div id="lista"></div>
+<p style="font-size:14px">Pausar encerra as sessões e deixa a conta recusar acesso; o dono volta entrando com a senha e confirmando. Bloquear só você desfaz (Reativar). Apagar remove a conta e os dados de vez. Gerar senha temporária troca a senha e derruba as sessões.</p>
+</main><script>
+var W="",$=function(i){return document.getElementById(i)},contas=[];
+function st(t){$("st").textContent=t||""}
+async function worker(){if(W)return W;var r=await fetch("../v2/config.json?t="+Date.now(),{cache:"no-store"});var c=await r.json();if(!c.sync)throw new Error("O serviço de contas não está configurado.");W=c.sync.replace(/\/+$/,"");return W}
+async function api(rota,corpo){var w=await worker();corpo.k=$("k").value;
+  var r=await fetch(w+rota,{method:"POST",headers:{"content-type":"text/plain"},body:JSON.stringify(corpo)});var j=await r.json().catch(function(){return{ok:false,erro:"Sem resposta ("+r.status+")"}});
+  if(!j.ok)throw new Error(j.erro||"Erro");return j}
+function desenha(){var f=$("q").value.trim().toLowerCase(),box=$("lista");box.innerHTML="";
+  contas.filter(function(c){return!f||c.u.indexOf(f)>=0}).forEach(function(c){
+    var d=document.createElement("div");d.className="row";
+    var n=document.createElement("b");n.textContent=c.u;var t=document.createElement("span");t.className="tag "+c.st;t.textContent=c.st;d.appendChild(n);d.appendChild(t);
+    [["Pausar","pausar","s"],["Bloquear","bloquear","s"],["Reativar","reativar",""],["Apagar","apagar","r"]].forEach(function(a){
+      var b=document.createElement("button");b.textContent=a[0];if(a[2])b.className=a[2];b.onclick=function(){agir(c.u,a[1])};d.appendChild(b)});
+    var s=document.createElement("button");s.className="s";s.textContent="Senha temporária";s.onclick=function(){reset(c.u)};d.appendChild(s);
+    box.appendChild(d)});
+  if(!box.children.length)box.textContent="Nenhuma conta."}
+async function listar(){st("Carregando...");try{var j=await api("/admin/listar",{});contas=j.contas.sort(function(a,b){return a.u<b.u?-1:1});desenha();st(j.contas.length+" conta(s)"+(j.mais?" (mostrando as 200 primeiras)":""))}catch(e){st(e.message)}}
+async function agir(u,acao){
+  if(acao==="apagar"){var x=prompt('Isso apaga a conta e todos os dados de "'+u+'" para sempre.\nDigite o nome da conta para confirmar:');if(x!==u)return st("Cancelado.")}
+  st("Aguarde...");try{await api("/admin/estado",{u:u,acao:acao});await listar();st(u+": "+acao+" feito.")}catch(e){st(e.message)}}
+async function reset(u){if(!confirm('Gerar uma senha temporária para "'+u+'"? As sessões dele serão encerradas.'))return;
+  st("Aguarde...");try{var j=await api("/admin/reset",{u:u});st("Senha temporária de "+u+": "+j.senhaTemporaria+" (passe ao dono; ele deve trocar depois)")}catch(e){st(e.message)}}
+$("ls").onclick=listar;$("q").oninput=desenha;$("k").onkeydown=function(e){if(e.key==="Enter")listar()};
+</script></body></html>
